@@ -1,11 +1,9 @@
-// simple-vad.cpp : This file contains the 'main' function. Program execution begins and ends there.
-//
-
-#include <iostream>
+﻿#include <iostream>
 #include <fstream>
 #include <vector>
 #include <string.h>
 #include <cstdio>
+#include <cstdlib>
 #include <cmath>
 #include <complex>
 #include <list>
@@ -13,9 +11,11 @@
 #include <random>
 #include <queue>
 #include <unordered_set>
+#include <windows.h>
 #include "fvad.h"
 #include "fftw3.h"
 #include "samplerate.h"
+#include "args_parser.h"
 
 
 using namespace std;
@@ -37,6 +37,7 @@ struct WavHeader {
 const size_t windowDurationMS = 20; //ms
 const size_t windowSize = windowDurationMS * 8; // num of sample (short) per window
 const size_t windowSizeByte = windowSize * sizeof(short);
+const int targetSampleRate = 8000;
 
 WavHeader CreateWavHeaderTemplate() {
     WavHeader h;
@@ -51,7 +52,8 @@ void writeWavHeader(std::ofstream& file, const WavHeader& header) {
     file.write(reinterpret_cast<const char*>(&header), sizeof(WavHeader));
 }
 
-void writeChannelToWAV(const std::string fileName, const vector<char> &data) {
+void writeChannelToWAV(const std::string fileName, const vector<int16_t> &data) {
+    int byteSize = data.size() * 2;
     // Save channel1Data to a binary file
     std::ofstream outputFile(fileName, std::ios::binary);
     if (!outputFile.is_open()) {
@@ -60,7 +62,7 @@ void writeChannelToWAV(const std::string fileName, const vector<char> &data) {
     }
 
     WavHeader header = CreateWavHeaderTemplate();
-    header.fileSize = sizeof(WavHeader) + 8 + data.size() - 8;
+    header.fileSize = sizeof(WavHeader) + 8 + byteSize - 8;
     header.audioFormat = 1;
     header.numChannels = 1;
     header.sampleRate = 8000;
@@ -70,11 +72,55 @@ void writeChannelToWAV(const std::string fileName, const vector<char> &data) {
 
     outputFile.write(reinterpret_cast<const char*>(&header), sizeof(WavHeader));
     outputFile.write("data", 4);
-    size_t sz = data.size();
+    size_t sz = byteSize;
     outputFile.write(reinterpret_cast<const char*>(&sz), 4);
-    outputFile.write(data.data(), data.size());
+    outputFile.write((char *)data.data(), byteSize);
     outputFile.close();
 }
+
+struct UserParameters {
+    string outputFilename = "output.srt";
+
+    bool useFiltering = true;
+    int minFreq = 0;
+    int maxFreq = targetSampleRate;
+    double energyThreshold = 0.001;
+    string filterOutputFile = "";
+
+    int vadMode = 1; //0-3
+
+    int mergeThreshold = 500;
+    int minValidDuration = 1000; //ms
+    int minGapDuration = 200; //ms
+};
+
+struct FreqInfo {
+    double totalEnergy = 0.0;
+    double topEnergy = 0.0;
+};
+
+void showHelpPage()
+{
+    cout << "Simple Voice Activity Detector by @jsc723 - version 1.1\n\n";
+    cout << "Usage: ./simple-vad.exe [options] <input_file>" << endl;
+    cout << "-o FILENAME               : specify the name of the output subtitle file, default output.srt\n\n";
+    
+    cout << "--no-filtering            : do not perform filtering, default disabled\n";
+    cout << "--min-freq  INT           : filter out all frequency below this number, default 0\n";
+    cout << "--max-freq  INT           : filter out all frequency above this number, default 8000\n";
+    cout << "--energy-threshold FLOAT  : filter out all sound frame whose energy is below this number, default 0.001\n";
+    cout << "--out-filtered FILENAME   : output the audio after filtering, before it is passed to vad, no output by default\n\n";
+
+    cout << "--vad-mode INT            : set the mode for the fvad library, larger => less chance to be classified as voice,\n";
+    cout << "                            range from 0-3, default 1\n\n";
+    cout << "--merge-threshold INT     : merge small and close voice segments, larger => merge more, default 500\n";
+    cout << "--min-valid-duration INT  : merge or extend the voice segments shorter than this number, default 1000(ms)\n";
+    cout << "--min-gap-duration INT    : merge the gaps between voice segments shorter than this number, default 200(ms)\n\n";
+    cout << "-h                        : show this help page";
+    cout << endl;
+}
+
+
 
 struct Segment {
     int start;
@@ -98,10 +144,18 @@ struct PQItem {
     PQItem(int cost, PQItemData* data) : cost(cost), data(data) {}
 };
 
-void postProcess(vector<int>& result) {
-    const int minDurationMS = 1000;
+void postProcess(vector<int>& result, const UserParameters &params) {
+    const int minDurationMS = params.minValidDuration;
     const int minLen = minDurationMS / windowDurationMS; // 1 len unit = 20 ms
-    const int thresh = 500;
+    const int thresh = params.mergeThreshold;
+    const int minGapFrame = params.minGapDuration / 20;
+
+    printf("--- post process ---\n");
+    printf("minValidDuration: %dms\n", minDurationMS);
+    printf("mergeThreshold: %d\n", thresh);
+    printf("minGapDuration: %dms\n", params.minGapDuration);
+    printf("minGapFrame: %d\n", minGapFrame);
+
     
     list<Segment> segs;
     int segNextId = 0;
@@ -121,7 +175,7 @@ void postProcess(vector<int>& result) {
         }
     }
     int merged = 0;
-    printf("size of segs %d\n", segs.size());
+    printf("post process: segments count = %d\n", segs.size());
     auto cmp = [](const PQItem& p, const PQItem& q) {
         if (p.cost != q.cost) {
             return p.cost > q.cost;
@@ -135,9 +189,9 @@ void postProcess(vector<int>& result) {
     priority_queue<PQItem, vector<PQItem>, decltype(cmp)> pq(cmp);
 
 
-    auto computeCost = [](list<Segment>::iterator& left, list<Segment>::iterator& right) {
+    auto computeCost = [minGapFrame](list<Segment>::iterator& left, list<Segment>::iterator& right) {
         int d = right->start - left->end();
-        if (d < 10) {
+        if (d < minGapFrame) {
             return 0;
         }
         return min(left->length, right->length) * (right->start - left->end());
@@ -222,29 +276,6 @@ void postProcess(vector<int>& result) {
         pq.pop();
     }
 
-    for (auto it = segs.begin(); it != segs.end() && std::next(it) != segs.end(); it++) {
-        auto nxt = std::next(it);
-        int dist = nxt->start - it->end();
-        if (dist < 10) {
-            printf("bug it=%d[%d %d], nxt=%d[%d, %d]\n", it->id, it->start, it->end(), nxt->id, nxt->start, nxt->end());
-        }
-    }
-
-    //for (auto it = segs.begin(); it != segs.end() && std::next(it) != segs.end(); it++) {
-    //    auto nxt = std::next(it);
-    //    int leftLen = it->length;
-    //    int rightLen = nxt->length;
-    //    int dist = (nxt->start - it->end());
-    //    if (min(leftLen, rightLen) * dist < 500 || dist < 5) {
-    //        merged++;
-    //        for (int k = it->end(); k < nxt->start; k++) {
-    //            result[k] = 1;
-    //        }
-    //        it->length = nxt->end() - it->start;
-    //        segs.erase(nxt);
-    //    }
-    //}
-
 
     for (auto it = segs.begin(); it != segs.end(); it++) {
         while (it->length < minLen) {
@@ -276,7 +307,7 @@ void postProcess(vector<int>& result) {
             }
         }
     }
-    printf("merged %d\n", merged);
+    printf("post process: merged %d segments\n", merged);
 
 
     if (result.back() == 1) {
@@ -304,17 +335,25 @@ void applyInverseFFT(const std::vector<std::complex<double>>& input, std::vector
     }
 }
 
+
 // Function to calculate Short-Time Fourier Transform (STFT)
-void doFiltering(std::vector<double>& input, size_t windowSize, size_t hopSize) {
+void doFiltering(std::vector<double>& input, size_t windowSize, size_t hopSize, const UserParameters &params) {
+    printf("--- filtering ---\n");
+    printf("use filtering = %d\n", params.useFiltering);
+    if (!params.useFiltering) {
+        return;
+    }
+
+    printf("min freq = %d\n", params.minFreq);
+    printf("max freq = %d\n", params.maxFreq);
+    printf("energy threshold = %lf\n", params.energyThreshold);
+
     size_t signalSize = input.size();
     size_t halfWindowSize = windowSize / 2;
     size_t numFrames = (signalSize - windowSize) / hopSize + 1;
     const int freqSize = (windowSize / 2 + 1);
-    const int sampleResolution = 8000 / windowSize;
+    const int sampleResolution = targetSampleRate / windowSize;
     const int padding = windowSize / hopSize;
-    const int minFreq = 0;
-    const int maxFreq = 8000;
-    const double energyThreshold = 0.001;
 
     std::vector<double> output(input.size());
     std::vector<std::complex<double>> freq(freqSize);
@@ -332,18 +371,17 @@ void doFiltering(std::vector<double>& input, size_t windowSize, size_t hopSize) 
             energy += sample * sample;
         }
         energy /= frame.size();
-        if (energy < energyThreshold) {
+        if (energy < params.energyThreshold) {
             std::copy(outframe.begin(), outframe.begin() + hopSize, output.begin() + i * hopSize);
             continue;
         }
-
 
         applyFFT(frame, freq);
 
         
         for (int j = 0; j < freqSize; j++) {
             int f = j * sampleResolution;
-            freq[j] = (f >= minFreq && f <= maxFreq) ? freq[j] : 0;
+            freq[j] = (f >= params.minFreq && f <= params.maxFreq) ? freq[j] : 0;
         }
 
         applyInverseFFT(freq, outframe);
@@ -354,19 +392,17 @@ void doFiltering(std::vector<double>& input, size_t windowSize, size_t hopSize) 
     input = move(output);
 }
 
-void preProcess(int16_t* buf, int buflen) {
+void preProcess(int16_t* buf, int buflen, const UserParameters &params) {
     vector<double> dbuf(buflen);
     for (int i = 0; i < buflen; i++) {
         dbuf[i] = buf[i] / 32768.0;
     }
-    doFiltering(dbuf, 160, 80);
+    doFiltering(dbuf, 160, 80, params);
     for (int i = 0; i < buflen; i++) {
         buf[i] = dbuf[i] * 32768;
     }
 }
 
-#include <samplerate.h>
-#include <vector>
 
 // Resample audio data from sourceSampleRate to targetSampleRate
 std::vector<short> resampleAudio(const std::vector<short>& input, int sourceSampleRate, int targetSampleRate) {
@@ -393,7 +429,7 @@ std::vector<short> resampleAudio(const std::vector<short>& input, int sourceSamp
     data.output_frames = outputSize;
 
     // Perform the actual resampling
-    int error = src_simple(&data, 0, 1);
+    int error = src_simple(&data, SRC_SINC_FASTEST, 1);
 
     if (error != 0) {
         // Handle error (you can check the error code in the libsamplerate documentation)
@@ -417,15 +453,83 @@ std::vector<short> resampleAudio(const std::vector<short>& input, int sourceSamp
 }
 
 
+vector<int16_t> convertToInt16Vec(const vector<char>& v) {
+    size_t numShorts = v.size() / sizeof(int16_t);
+    std::vector<int16_t> x(numShorts);
+    const int16_t* shortDataPtr = reinterpret_cast<const int16_t*>(v.data());
+    std::copy(shortDataPtr, shortDataPtr + numShorts, x.begin());
+    return x;
+}
 
-int main()
+bool endsWith(const std::string& str, const std::string& suffix) {
+    if (str.length() < suffix.length()) {
+        return false;
+    }
+    return str.substr(str.length() - suffix.length()) == suffix;
+}
+
+bool createDirectory(const std::wstring& path) {
+    if (CreateDirectory(path.c_str(), NULL) || GetLastError() == ERROR_ALREADY_EXISTS) {
+        return true;
+    }
+    else {
+        std::wcerr << L"Failed to create directory: " << path << std::endl;
+        return false;
+    }
+}
+
+
+int main(int argc, char **argv)
 {
-    const char* filename = "data/test-yuihi-8k.wav";
+    SetConsoleOutputCP(CP_UTF8);
+    ArgsParser args(argc, argv);
+    if (argc < 2 || args.cmdOptionExists("-h")) {
+        showHelpPage();
+        if (argc < 2) {
+            system("pause");
+        }
+        return 0;
+    }
+    string filename = args.getLastArg();
     std::ifstream file(filename, std::ios::binary);
-    if (!file.is_open()) {
+    if (!file.is_open() || !endsWith(filename, ".wav")) {
         std::cerr << "Error opening file: " << filename << std::endl;
         return 1;
     }
+
+    UserParameters params;
+    if (args.cmdOptionExists("-o")) {
+        params.outputFilename = args.getCmdOption("-o");
+    }
+    if (args.cmdOptionExists("--no-filtering")) {
+        params.useFiltering = false;
+    }
+    if (args.cmdOptionExists("--min-freq")) {
+        params.minFreq = args.getIntArg("--min-freq", params.minFreq);
+    }
+    if (args.cmdOptionExists("--max-freq")) {
+        params.maxFreq = args.getIntArg("--max-freq", params.maxFreq);
+    }
+    if (args.cmdOptionExists("--energy-threshold")) {
+        params.energyThreshold = args.getFloatArg("--energy-threshold", params.energyThreshold);
+    }
+    if (args.cmdOptionExists("--out-filtered")) {
+        params.filterOutputFile = args.getCmdOption("--out-filtered");
+    }
+    if (args.cmdOptionExists("--vad-mode")) {
+        params.vadMode = args.getIntArg("--vad-mode", params.vadMode);
+    }
+    if (args.cmdOptionExists("--merge-threshold")) {
+        params.mergeThreshold = args.getIntArg("--merge-threshold", params.mergeThreshold);
+    }
+    if (args.cmdOptionExists("--min-valid-duration")) {
+        params.minValidDuration = args.getIntArg("--min-valid-duration", params.minValidDuration);
+    }
+    if (args.cmdOptionExists("--min-gap-duration")) {
+        params.minGapDuration = args.getIntArg("--min-gap-duration", params.minGapDuration);
+    }
+    
+    
 
     WavHeader header;
     file.read(reinterpret_cast<char*>(&header), sizeof(WavHeader));
@@ -496,12 +600,26 @@ int main()
         std::copy(audioData.begin() + i + bytesPerSample, audioData.begin() + i + header.numChannels * bytesPerSample, channel2Data.begin() + (i / 2));
     }
 
+    audioData.clear();
     
-    //cout << "writting channel 1 data..." << endl;
-    //writeChannelToWAV("data/channel1.wav", channel1Data);
+    cout << "convert to int16_t..." << endl;
+    vector<int16_t> channel1 = convertToInt16Vec(channel1Data);
+    vector<int16_t> channel2 = convertToInt16Vec(channel2Data);
+    channel1Data.clear();
+    channel2Data.clear();
 
-    //cout << "writting channel 2 data..." << endl;
-    //writeChannelToWAV("data/channel2.wav", channel2Data);
+    
+
+    if (header.sampleRate != targetSampleRate) {
+        cout << "resampling..." << endl;
+        channel1 = resampleAudio(channel1, header.sampleRate, targetSampleRate);
+        channel2 = resampleAudio(channel2, header.sampleRate, targetSampleRate);
+    }
+
+    printf("number of sample: %d\n", channel1.size());
+
+    int16_t* data1 = (int16_t*)channel1.data();
+    int16_t* data2 = (int16_t*)channel2.data();
 
 
     Fvad* vad;
@@ -509,23 +627,28 @@ int main()
     if (!vad) {
         std::cout << "error init";
     }
-    fvad_set_mode(vad, 1);
-    fvad_set_sample_rate(vad, 8000);
+    fvad_set_mode(vad, params.vadMode);
+    fvad_set_sample_rate(vad, targetSampleRate);
 
 
-    const size_t resultLen = channel1Data.size() / windowSizeByte;
+    const size_t resultLen = channel1.size() * 2 / windowSizeByte;
     vector<int> result1(resultLen);
     vector<int> result2(resultLen);
     vector<int> result(resultLen);
 
-    int16_t * data1 = (int16_t *)channel1Data.data();
-    int16_t * data2 = (int16_t *)channel2Data.data();
+    printf("resultLen = %d\n", resultLen);
 
-    preProcess(data1, channel1Data.size() / 2);
-    preProcess(data2, channel2Data.size() / 2);
+    cout << "apply fft and filter..." << endl;
+    
+    preProcess(data1, channel1.size(), params);
+    preProcess(data2, channel2.size(), params);
 
-    cout << "writting channel 1 data..." << endl;
-    writeChannelToWAV("data/channel1_filtered.wav", channel1Data);
+    
+    if (params.filterOutputFile.size()) {
+        cout << "writting filtered channel 1 data..." << endl;
+        writeChannelToWAV(params.filterOutputFile, channel1);
+    }
+
 
     for (size_t i = 0; i < resultLen; i++) {
         result1[i] = fvad_process(vad, data1 + i * windowSize, windowSize);
@@ -536,20 +659,21 @@ int main()
     }
 
     const int resPerSec = 1000 / windowDurationMS;
-    postProcess(result);
+    postProcess(result, params);
     for (int sec = 0; sec < 30; sec++) {
         printf("%2d ", sec);
         for (int i = 0; i < resPerSec; i++) {
+            if (sec * resPerSec + i >= result.size()) {
+                printf("\n");
+                goto end_print;
+            }
             printf("%d", result[sec * resPerSec + i]);
         }
         printf("\n");
     }
+    end_print:
 
-    channel1Data.clear();
-    channel2Data.clear();
     fvad_free(vad);
-
-    
 
     vector<bool> resultDelta(result.size() + 1);
     vector<string> timeStamps;
@@ -569,7 +693,7 @@ int main()
     }
 
 
-    FILE* outsrt = fopen("output.srt", "w");
+    FILE* outsrt = fopen(params.outputFilename.c_str(), "w");
     if (!outsrt) {
         std::cerr << "Error opening the output.txt." << std::endl;
         return 1; 
@@ -580,7 +704,5 @@ int main()
     }
     fprintf(outsrt, "\n");
     
-
-
     std::cout << "Done" << std::endl;
 }
