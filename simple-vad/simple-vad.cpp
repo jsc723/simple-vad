@@ -11,6 +11,7 @@
 #include <random>
 #include <queue>
 #include <unordered_set>
+#include <algorithm>
 #include <windows.h>
 #include "fvad.h"
 #include "fftw3.h"
@@ -36,8 +37,10 @@ struct WavHeader {
 
 const size_t windowDurationMS = 20; //ms
 const size_t windowSize = windowDurationMS * 8; // num of sample (short) per window
+const size_t hopSize = windowSize / 2;
 const size_t windowSizeByte = windowSize * sizeof(short);
-const int targetSampleRate = 8000;
+const size_t targetSampleRate = 8000;
+const double minValidFrameInSegmentRatio = 0.3;
 
 WavHeader CreateWavHeaderTemplate() {
     WavHeader h;
@@ -84,11 +87,12 @@ struct UserParameters {
     bool useFiltering = true;
     int minFreq = 0;
     int maxFreq = targetSampleRate;
-    double energyThreshold = 0.001;
+    double energyThreshold = 0.0;
     string filterOutputFile = "";
 
     int vadMode = 1; //0-3
 
+    double minValidTopFreqEnergyRatio = 0.90;
     int mergeThreshold = 500;
     int minValidDuration = 1000; //ms
     int minGapDuration = 200; //ms
@@ -101,7 +105,7 @@ struct FreqInfo {
 
 void showHelpPage()
 {
-    cout << "Simple Voice Activity Detector by @jsc723 - version 1.1\n\n";
+    cout << "Simple Voice Activity Detector by @jsc723 - version 1.2 - 2023\n\n";
     cout << "Usage: ./simple-vad.exe [options] <input_file>" << endl;
     cout << "-o FILENAME               : specify the name of the output subtitle file, default output.srt\n\n";
     
@@ -116,6 +120,8 @@ void showHelpPage()
     cout << "--merge-threshold INT     : merge small and close voice segments, larger => merge more, default 500\n";
     cout << "--min-valid-duration INT  : merge or extend the voice segments shorter than this number, default 1000(ms)\n";
     cout << "--min-gap-duration INT    : merge the gaps between voice segments shorter than this number, default 200(ms)\n\n";
+    cout << "--min-clear-ratio FLOAT   : range 0-1, remove all segments which doesn't have enough portion of frames\n";
+    cout << "                            with a top frequency bin energy to total energy above this number, default 0.85";
     cout << "-h                        : show this help page";
     cout << endl;
 }
@@ -144,7 +150,8 @@ struct PQItem {
     PQItem(int cost, PQItemData* data) : cost(cost), data(data) {}
 };
 
-void postProcess(vector<int>& result, const UserParameters &params) {
+//result and info must have the same length
+void postProcess(vector<int>& result, const UserParameters &params, vector<FreqInfo> &info) {
     const int minDurationMS = params.minValidDuration;
     const int minLen = minDurationMS / windowDurationMS; // 1 len unit = 20 ms
     const int thresh = params.mergeThreshold;
@@ -174,6 +181,30 @@ void postProcess(vector<int>& result, const UserParameters &params) {
             }
         }
     }
+
+    printf("min clear ratio = %lf\n", params.minValidTopFreqEnergyRatio);
+    int removedSeg = 0;
+    for (auto it = segs.begin(); it != segs.end(); ++it) {
+        if (it->length == 0) {
+            continue;
+        }
+        int validCount = 0;
+        for (int k = it->start; k < it->end(); k++) {
+            double ratio = (double)info[k].topEnergy / (info[k].totalEnergy + 1e-9);
+            if (ratio >= params.minValidTopFreqEnergyRatio) {
+                validCount++;
+            }
+        }
+        if ((double)validCount / it->length < minValidFrameInSegmentRatio) {
+            for (int k = it->start; k < it->end(); k++) {
+                result[k] = 0;
+            }
+            removedSeg++;
+            segs.erase(it);
+        }
+    }
+    printf("post process: removed %d segments\n", removedSeg);
+
     int merged = 0;
     printf("post process: segments count = %d\n", segs.size());
     auto cmp = [](const PQItem& p, const PQItem& q) {
@@ -310,6 +341,8 @@ void postProcess(vector<int>& result, const UserParameters &params) {
     printf("post process: merged %d segments\n", merged);
 
 
+
+
     if (result.back() == 1) {
         result.back() = 0;
     }
@@ -337,7 +370,7 @@ void applyInverseFFT(const std::vector<std::complex<double>>& input, std::vector
 
 
 // Function to calculate Short-Time Fourier Transform (STFT)
-void doFiltering(std::vector<double>& input, size_t windowSize, size_t hopSize, const UserParameters &params) {
+void doFiltering(std::vector<double>& input, size_t windowSize, size_t hopSize, const UserParameters &params, vector<FreqInfo>& freqInfos) {
     printf("--- filtering ---\n");
     printf("use filtering = %d\n", params.useFiltering);
     if (!params.useFiltering) {
@@ -350,7 +383,7 @@ void doFiltering(std::vector<double>& input, size_t windowSize, size_t hopSize, 
 
     size_t signalSize = input.size();
     size_t halfWindowSize = windowSize / 2;
-    size_t numFrames = (signalSize - windowSize) / hopSize + 1;
+    size_t numFrames = signalSize / hopSize;
     const int freqSize = (windowSize / 2 + 1);
     const int sampleResolution = targetSampleRate / windowSize;
     const int padding = windowSize / hopSize;
@@ -370,7 +403,7 @@ void doFiltering(std::vector<double>& input, size_t windowSize, size_t hopSize, 
         for (auto sample : frame) {
             energy += sample * sample;
         }
-        energy /= frame.size();
+        
         if (energy < params.energyThreshold) {
             std::copy(outframe.begin(), outframe.begin() + hopSize, output.begin() + i * hopSize);
             continue;
@@ -378,29 +411,54 @@ void doFiltering(std::vector<double>& input, size_t windowSize, size_t hopSize, 
 
         applyFFT(frame, freq);
 
-        
         for (int j = 0; j < freqSize; j++) {
             int f = j * sampleResolution;
             freq[j] = (f >= params.minFreq && f <= params.maxFreq) ? freq[j] : 0;
         }
 
+        double energyFreq = 1e-9;
+        vector<double> binEnergy(freq.size());
+        for (int i = 0; i < freq.size(); i++) {
+            double norm = std::abs(freq[i]);
+            double e = norm * norm;
+            binEnergy[i] = e / freq.size();
+            energyFreq += e;
+        }
+        energyFreq /= freq.size(); //a little smaller than energy due to loss during fft
+        std::sort(binEnergy.rbegin(), binEnergy.rend());
+
+        double topEnergy = 0;
+        for (int i = 0; i < binEnergy.size() * 0.1; i++) {
+            topEnergy += binEnergy[i];
+        }
+
+        freqInfos[i].totalEnergy = energyFreq;
+        freqInfos[i].topEnergy = topEnergy;
+
         applyInverseFFT(freq, outframe);
         
-
         std::copy(outframe.begin(), outframe.begin() + hopSize, output.begin() + i * hopSize);
     }
     input = move(output);
 }
 
-void preProcess(int16_t* buf, int buflen, const UserParameters &params) {
+vector<FreqInfo> preProcess(int16_t* buf, int buflen, const UserParameters &params) {
     vector<double> dbuf(buflen);
+    double maxAmplitude = 1e-9;
     for (int i = 0; i < buflen; i++) {
         dbuf[i] = buf[i] / 32768.0;
+        maxAmplitude = max(maxAmplitude, std::abs(dbuf[i]));
     }
-    doFiltering(dbuf, 160, 80, params);
     for (int i = 0; i < buflen; i++) {
-        buf[i] = dbuf[i] * 32768;
+        dbuf[i] = dbuf[i] / maxAmplitude;
     }
+    
+    vector<FreqInfo> freqInfos(buflen / hopSize);
+    doFiltering(dbuf, windowSize, hopSize, params, freqInfos);
+    for (int i = 0; i < buflen; i++) {
+        buf[i] = dbuf[i] * maxAmplitude * 32768;
+    }
+    return freqInfos;
 }
 
 
@@ -478,6 +536,17 @@ bool createDirectory(const std::wstring& path) {
     }
 }
 
+vector<FreqInfo> mergeFreqInfo(const vector<FreqInfo>& c1, const vector<FreqInfo>& c2) {
+    vector<FreqInfo> res(c1.size() / 2);
+    for (int i = 0; i < res.size(); i++) {
+        res[i].topEnergy = std::max<double>(c1[2 * i].topEnergy + c1[2 * i + 1].totalEnergy,
+            c2[2 * i].topEnergy + c2[2 * i + 1].totalEnergy);
+        res[i].totalEnergy = std::max<double>(c1[2 * i].totalEnergy + c1[2 * i + 1].totalEnergy,
+            c2[2 * i].totalEnergy + c2[2 * i + 1].totalEnergy);
+    }
+    return res;
+}
+
 
 int main(int argc, char **argv)
 {
@@ -527,6 +596,9 @@ int main(int argc, char **argv)
     }
     if (args.cmdOptionExists("--min-gap-duration")) {
         params.minGapDuration = args.getIntArg("--min-gap-duration", params.minGapDuration);
+    }
+    if (args.cmdOptionExists("--min-clear-ratio")) {
+        params.minValidTopFreqEnergyRatio = args.getFloatArg("--min-clear-ratio", params.minValidTopFreqEnergyRatio);
     }
     
     
@@ -640,9 +712,15 @@ int main(int argc, char **argv)
 
     cout << "apply fft and filter..." << endl;
     
-    preProcess(data1, channel1.size(), params);
-    preProcess(data2, channel2.size(), params);
+    vector<FreqInfo> c1Freqinfos = preProcess(data1, channel1.size(), params);
+    vector<FreqInfo> c2Freqinfos = preProcess(data2, channel2.size(), params);
+    vector<FreqInfo> mergedFreqInfos = mergeFreqInfo(c1Freqinfos, c2Freqinfos);
 
+    if (resultLen != mergedFreqInfos.size()) {
+        cerr << "err merged freqinfo len" << endl;
+        printf("%d %d\n", resultLen, mergedFreqInfos.size());
+        exit(1);
+    }
     
     if (params.filterOutputFile.size()) {
         cout << "writting filtered channel 1 data..." << endl;
@@ -659,7 +737,7 @@ int main(int argc, char **argv)
     }
 
     const int resPerSec = 1000 / windowDurationMS;
-    postProcess(result, params);
+    postProcess(result, params, mergedFreqInfos);
     for (int sec = 0; sec < 30; sec++) {
         printf("%2d ", sec);
         for (int i = 0; i < resPerSec; i++) {

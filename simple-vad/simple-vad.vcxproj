@@ -119,6 +119,11 @@
       <AdditionalDependencies>fvad.lib;libfftw3-3.lib;libfftw3f-3.lib;libfftw3l-3.lib;samplerate.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>C:\Users\jscjs\source\repos\simple-vad\simple-vad\libs;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
+    <PostBuildEvent>
+      <Command>xcopy /y "$(TargetPath)" "$(ProjectDir)\..\simple-vad-gui\bin\Release\net7.0-windows\"
+xcopy /y "$(TargetPath)" "$(ProjectDir)\..\simple-vad-gui\bin\Debug\net7.0-windows\"
+xcopy /y "$(TargetPath)" "$(ProjectDir)\..\release\"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -137,6 +142,11 @@
       <AdditionalDependencies>fvad.lib;libfftw3-3.lib;libfftw3f-3.lib;libfftw3l-3.lib;samplerate.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>C:\Users\jscjs\source\repos\simple-vad\simple-vad\libs;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
+    <PostBuildEvent>
+      <Command>xcopy /y "$(TargetPath)" "$(ProjectDir)\..\simple-vad-gui\bin\Release\net7.0-windows\"
+xcopy /y "$(TargetPath)" "$(ProjectDir)\..\simple-vad-gui\bin\Debug\net7.0-windows\"
+xcopy /y "$(TargetPath)" "$(ProjectDir)\..\release\"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="simple-vad.cpp" />

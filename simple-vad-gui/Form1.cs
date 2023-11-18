@@ -227,6 +227,11 @@ namespace simple_vad_gui
         {
             updateParam("--min-gap-duration", minGapPicker.Value.ToString());
         }
+
+        private void numericUpDown1_ValueChanged_1(object sender, EventArgs e)
+        {
+            updateParam("--min-clear-ratio", minClearRatioPicker.Value.ToString());
+        }
     }
 
     public static class ProcessExtensions

@@ -54,6 +54,8 @@
             outputTextbox = new TextBox();
             outputButton = new Button();
             stdoutBox = new TextBox();
+            label6 = new Label();
+            minClearRatioPicker = new NumericUpDown();
             ((System.ComponentModel.ISupportInitialize)minFreqPicker).BeginInit();
             ((System.ComponentModel.ISupportInitialize)maxFreqPicker).BeginInit();
             ((System.ComponentModel.ISupportInitialize)energyThreshPicker).BeginInit();
@@ -61,6 +63,7 @@
             ((System.ComponentModel.ISupportInitialize)mergeThresholdPicker).BeginInit();
             ((System.ComponentModel.ISupportInitialize)minDurationPicker).BeginInit();
             ((System.ComponentModel.ISupportInitialize)minGapPicker).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)minClearRatioPicker).BeginInit();
             SuspendLayout();
             // 
             // checkBoxUseFiltering
@@ -156,14 +159,13 @@
             // 
             // energyThreshPicker
             // 
-            energyThreshPicker.DecimalPlaces = 6;
-            energyThreshPicker.Increment = new decimal(new int[] { 1, 0, 0, 262144 });
+            energyThreshPicker.DecimalPlaces = 4;
+            energyThreshPicker.Increment = new decimal(new int[] { 1, 0, 0, 196608 });
             energyThreshPicker.Location = new Point(298, 124);
             energyThreshPicker.Maximum = new decimal(new int[] { 10, 0, 0, 65536 });
             energyThreshPicker.Name = "energyThreshPicker";
             energyThreshPicker.Size = new Size(107, 27);
             energyThreshPicker.TabIndex = 9;
-            energyThreshPicker.Value = new decimal(new int[] { 1, 0, 0, 196608 });
             energyThreshPicker.ValueChanged += numericUpDown1_ValueChanged;
             // 
             // outFilteredTextBox
@@ -187,7 +189,7 @@
             // label2
             // 
             label2.AutoSize = true;
-            label2.Location = new Point(219, 235);
+            label2.Location = new Point(48, 230);
             label2.Name = "label2";
             label2.Size = new Size(73, 20);
             label2.TabIndex = 14;
@@ -195,7 +197,7 @@
             // 
             // vadModePicker
             // 
-            vadModePicker.Location = new Point(298, 233);
+            vadModePicker.Location = new Point(127, 228);
             vadModePicker.Maximum = new decimal(new int[] { 3, 0, 0, 0 });
             vadModePicker.Name = "vadModePicker";
             vadModePicker.Size = new Size(107, 27);
@@ -206,7 +208,7 @@
             // label3
             // 
             label3.AutoSize = true;
-            label3.Location = new Point(219, 288);
+            label3.Location = new Point(48, 286);
             label3.Name = "label3";
             label3.Size = new Size(73, 20);
             label3.TabIndex = 16;
@@ -214,7 +216,7 @@
             // 
             // mergeThresholdPicker
             // 
-            mergeThresholdPicker.Location = new Point(298, 286);
+            mergeThresholdPicker.Location = new Point(127, 286);
             mergeThresholdPicker.Maximum = new decimal(new int[] { 100000, 0, 0, 0 });
             mergeThresholdPicker.Name = "mergeThresholdPicker";
             mergeThresholdPicker.Size = new Size(107, 27);
@@ -225,7 +227,7 @@
             // label4
             // 
             label4.AutoSize = true;
-            label4.Location = new Point(449, 235);
+            label4.Location = new Point(263, 230);
             label4.Name = "label4";
             label4.Size = new Size(105, 20);
             label4.TabIndex = 18;
@@ -233,7 +235,7 @@
             // 
             // minDurationPicker
             // 
-            minDurationPicker.Location = new Point(560, 233);
+            minDurationPicker.Location = new Point(374, 228);
             minDurationPicker.Maximum = new decimal(new int[] { 100000, 0, 0, 0 });
             minDurationPicker.Name = "minDurationPicker";
             minDurationPicker.Size = new Size(107, 27);
@@ -244,7 +246,7 @@
             // label5
             // 
             label5.AutoSize = true;
-            label5.Location = new Point(481, 288);
+            label5.Location = new Point(521, 230);
             label5.Name = "label5";
             label5.Size = new Size(73, 20);
             label5.TabIndex = 20;
@@ -252,7 +254,7 @@
             // 
             // minGapPicker
             // 
-            minGapPicker.Location = new Point(560, 286);
+            minGapPicker.Location = new Point(600, 228);
             minGapPicker.Maximum = new decimal(new int[] { 100000, 0, 0, 0 });
             minGapPicker.Name = "minGapPicker";
             minGapPicker.Size = new Size(107, 27);
@@ -291,11 +293,34 @@
             stdoutBox.Size = new Size(689, 188);
             stdoutBox.TabIndex = 23;
             // 
+            // label6
+            // 
+            label6.AutoSize = true;
+            label6.Location = new Point(264, 284);
+            label6.Name = "label6";
+            label6.Size = new Size(89, 20);
+            label6.TabIndex = 25;
+            label6.Text = "最小识别比";
+            // 
+            // minClearRatioPicker
+            // 
+            minClearRatioPicker.DecimalPlaces = 3;
+            minClearRatioPicker.Increment = new decimal(new int[] { 1, 0, 0, 196608 });
+            minClearRatioPicker.Location = new Point(374, 282);
+            minClearRatioPicker.Maximum = new decimal(new int[] { 1, 0, 0, 0 });
+            minClearRatioPicker.Name = "minClearRatioPicker";
+            minClearRatioPicker.Size = new Size(107, 27);
+            minClearRatioPicker.TabIndex = 24;
+            minClearRatioPicker.Value = new decimal(new int[] { 9, 0, 0, 65536 });
+            minClearRatioPicker.ValueChanged += numericUpDown1_ValueChanged_1;
+            // 
             // Form1
             // 
             AutoScaleDimensions = new SizeF(8F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(800, 655);
+            Controls.Add(label6);
+            Controls.Add(minClearRatioPicker);
             Controls.Add(stdoutBox);
             Controls.Add(outputTextbox);
             Controls.Add(outputButton);
@@ -328,6 +353,7 @@
             ((System.ComponentModel.ISupportInitialize)mergeThresholdPicker).EndInit();
             ((System.ComponentModel.ISupportInitialize)minDurationPicker).EndInit();
             ((System.ComponentModel.ISupportInitialize)minGapPicker).EndInit();
+            ((System.ComponentModel.ISupportInitialize)minClearRatioPicker).EndInit();
             ResumeLayout(false);
             PerformLayout();
         }
@@ -357,5 +383,7 @@
         private TextBox outputTextbox;
         private Button outputButton;
         private TextBox stdoutBox;
+        private Label label6;
+        private NumericUpDown minClearRatioPicker;
     }
 }
