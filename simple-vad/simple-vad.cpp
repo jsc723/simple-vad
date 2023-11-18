@@ -105,7 +105,7 @@ struct FreqInfo {
 
 void showHelpPage()
 {
-    cout << "Simple Voice Activity Detector by @jsc723 - version 1.2.3 - 2023\n\n";
+    cout << "Simple Voice Activity Detector by @jsc723 - version 1.2.4 - 2023\n\n";
     cout << "Usage: ./simple-vad.exe [options] <input_file>" << endl;
     cout << "-o FILENAME               : specify the name of the output subtitle file, default output.srt\n\n";
     
@@ -384,16 +384,15 @@ void doFiltering(std::vector<double>& input, size_t windowSize, size_t hopSize, 
     size_t numFrames = signalSize / hopSize;
     const int freqSize = (windowSize / 2 + 1);
     const int sampleResolution = targetSampleRate / windowSize;
-    const int padding = windowSize / hopSize;
 
     std::vector<double> output(input.size());
     std::vector<std::complex<double>> freq(freqSize);
 
-    // Apply FFT to each frame
-    for (size_t i = padding; i < numFrames - padding; ++i) {
-        std::vector<double> frame(windowSize);
-        std::vector<double> outframe(windowSize);
+    std::vector<double> frame(windowSize);
+    std::vector<double> outframe(windowSize);
 
+    // Apply FFT to each frame
+    for (size_t i = 1; i < numFrames; ++i) {
         // Extract the frame from the input signal
         std::copy(input.begin() + i * hopSize - halfWindowSize, input.begin() + i * hopSize + halfWindowSize, frame.begin());
 
@@ -403,7 +402,7 @@ void doFiltering(std::vector<double>& input, size_t windowSize, size_t hopSize, 
         }
         
         if (energy < params.energyThreshold) {
-            std::copy(outframe.begin(), outframe.begin() + hopSize, output.begin() + i * hopSize);
+            std::fill(output.begin() + i * hopSize, output.begin() + i * hopSize + hopSize, 0);
             continue;
         }
 
@@ -493,7 +492,7 @@ std::vector<short> resampleAudio(const std::vector<short>& input, int sourceSamp
         std::cerr << "libsamplerate error: " << error << std::endl;
         delete[] data.data_in;
         delete[] data.data_out;
-        return std::vector<short>(); // Return an empty vector in case of an error
+        exit(1);
     }
 
     // Convert the float output data back to short
@@ -508,14 +507,6 @@ std::vector<short> resampleAudio(const std::vector<short>& input, int sourceSamp
     return output;
 }
 
-
-vector<int16_t> convertToInt16Vec(const vector<char>& v) {
-    size_t numShorts = v.size() / sizeof(int16_t);
-    std::vector<int16_t> x(numShorts);
-    const int16_t* shortDataPtr = reinterpret_cast<const int16_t*>(v.data());
-    std::copy(shortDataPtr, shortDataPtr + numShorts, x.begin());
-    return x;
-}
 
 bool endsWith(const std::string& str, const std::string& suffix) {
     if (str.length() < suffix.length()) {
@@ -621,7 +612,11 @@ int main(int argc, char **argv)
     std::cout << "Bits Per Sample: " << header.bitsPerSample << " bits" << std::endl;
 
     if (header.numChannels != 2) {
-        std::cerr << "num of channels must be 2" << filename << std::endl;
+        std::cerr << "num of channels must be 2" << std::endl;
+        return 1;
+    }
+    if (header.bitsPerSample != 16) {
+        std::cerr << "bits per sample must be 16" << std::endl;
         return 1;
     }
     
@@ -657,28 +652,22 @@ int main(int argc, char **argv)
     std::cout << "Data size: " << dataSize << " bits" << std::endl;
 
     // Separate the interleaved channels
-    std::vector<char> channel1Data(dataSize / 2);
-    std::vector<char> channel2Data(dataSize / 2);
+    vector<int16_t> channel1(dataSize / 4);
+    vector<int16_t> channel2(dataSize / 4);
     
-
     cout << "copying channel data..." << endl;
 
     for (size_t i = 0; i < audioData.size(); i += header.numChannels * bytesPerSample) {
+        int16_t temp;
         // Copy left channel sample
-        std::copy(audioData.begin() + i, audioData.begin() + i + bytesPerSample, channel1Data.begin() + (i / 2));
+        std::copy(audioData.begin() + i, audioData.begin() + i + bytesPerSample, reinterpret_cast<char *>(&temp));
+        channel1[i / 4] = temp;
         // Copy right channel sample
-        std::copy(audioData.begin() + i + bytesPerSample, audioData.begin() + i + header.numChannels * bytesPerSample, channel2Data.begin() + (i / 2));
+        std::copy(audioData.begin() + i + bytesPerSample, audioData.begin() + i + header.numChannels * bytesPerSample, reinterpret_cast<char*>(&temp));
+        channel2[i / 4] = temp;
     }
 
     audioData.clear();
-    
-    cout << "convert to int16_t..." << endl;
-    vector<int16_t> channel1 = convertToInt16Vec(channel1Data);
-    vector<int16_t> channel2 = convertToInt16Vec(channel2Data);
-    channel1Data.clear();
-    channel2Data.clear();
-
-    
 
     if (header.sampleRate != targetSampleRate) {
         cout << "resampling..." << endl;
@@ -703,7 +692,6 @@ int main(int argc, char **argv)
 
     const size_t resultLen = channel1.size() * 2 / windowSizeByte;
     vector<int> result1(resultLen);
-    vector<int> result2(resultLen);
     vector<int> result(resultLen);
 
     printf("resultLen = %d\n", resultLen);
@@ -731,8 +719,8 @@ int main(int argc, char **argv)
         result1[i] = fvad_process(vad, data1 + i * windowSize, windowSize);
     }
     for (size_t i = 0; i < resultLen; i++) {
-        result2[i] = fvad_process(vad, data2 + i * windowSize, windowSize);
-        result[i] = (result1[i] == 1 || result2[i] == 1);
+        int res2 = fvad_process(vad, data2 + i * windowSize, windowSize);
+        result[i] = (result1[i] == 1 || res2 == 1);
     }
 
     cout << "start post processing..." << endl;
