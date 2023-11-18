@@ -311,11 +311,12 @@
             minClearRatioPicker.Name = "minClearRatioPicker";
             minClearRatioPicker.Size = new Size(107, 27);
             minClearRatioPicker.TabIndex = 24;
-            minClearRatioPicker.Value = new decimal(new int[] { 9, 0, 0, 65536 });
+            minClearRatioPicker.Value = new decimal(new int[] { 85, 0, 0, 131072 });
             minClearRatioPicker.ValueChanged += numericUpDown1_ValueChanged_1;
             // 
             // Form1
             // 
+            AllowDrop = true;
             AutoScaleDimensions = new SizeF(8F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(800, 655);
@@ -346,6 +347,8 @@
             Controls.Add(checkBoxUseFiltering);
             Name = "Form1";
             Text = "SimpleVAD GUI";
+            DragDrop += Form1_DragDrop;
+            DragEnter += Form1_DragEnter;
             ((System.ComponentModel.ISupportInitialize)minFreqPicker).EndInit();
             ((System.ComponentModel.ISupportInitialize)maxFreqPicker).EndInit();
             ((System.ComponentModel.ISupportInitialize)energyThreshPicker).EndInit();

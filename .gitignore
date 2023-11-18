@@ -12,3 +12,5 @@
 /simple-vad-gui/obj
 /x64
 /simple-vad-v1.2.zip
+*.srt
+*.zip

@@ -92,7 +92,7 @@ struct UserParameters {
 
     int vadMode = 1; //0-3
 
-    double minValidTopFreqEnergyRatio = 0.90;
+    double minValidTopFreqEnergyRatio = 0.85;
     int mergeThreshold = 500;
     int minValidDuration = 1000; //ms
     int minGapDuration = 200; //ms
@@ -105,7 +105,7 @@ struct FreqInfo {
 
 void showHelpPage()
 {
-    cout << "Simple Voice Activity Detector by @jsc723 - version 1.2.1 - 2023\n\n";
+    cout << "Simple Voice Activity Detector by @jsc723 - version 1.2.2 - 2023\n\n";
     cout << "Usage: ./simple-vad.exe [options] <input_file>" << endl;
     cout << "-o FILENAME               : specify the name of the output subtitle file, default output.srt\n\n";
     

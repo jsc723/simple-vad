@@ -232,6 +232,33 @@ namespace simple_vad_gui
         {
             updateParam("--min-clear-ratio", minClearRatioPicker.Value.ToString());
         }
+
+        private void Form1_DragEnter(object sender, DragEventArgs e)
+        {
+            // Check if the data is a file or a list of files
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                // Allow dropping of the data
+                e.Effect = DragDropEffects.Copy;
+            }
+            else
+            {
+                // Disallow dropping
+                e.Effect = DragDropEffects.None;
+            }
+        }
+
+        private void Form1_DragDrop(object sender, DragEventArgs e)
+        {
+            // Get the file or files dropped
+            string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
+
+            if (files != null && files.Length > 0 && files[0].EndsWith(".wav"))
+            {
+                inputTextBox.Text = files[0];
+                executeButton.Enabled = files[0].Length > 0;
+            }
+        }
     }
 
     public static class ProcessExtensions
