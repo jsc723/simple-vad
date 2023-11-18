@@ -380,7 +380,6 @@ void doFiltering(std::vector<double>& input, size_t windowSize, size_t hopSize, 
     printf("min freq = %d\n", params.minFreq);
     printf("max freq = %d\n", params.maxFreq);
     printf("energy threshold = %lf\n", params.energyThreshold);
-    cout << fflush;
 
     size_t signalSize = input.size();
     size_t halfWindowSize = windowSize / 2;
