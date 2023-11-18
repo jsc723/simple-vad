@@ -105,9 +105,12 @@ struct FreqInfo {
     double topEnergy = 0.0;
 };
 
-void showHelpPage()
+void showHelpPage(bool headerOnly)
 {
     cout << "Simple Voice Activity Detector by @jsc723 - version 1.3.0 - 2023\n\n";
+    if (headerOnly) {
+        return;
+    }
     cout << "Usage: ./simple-vad.exe [options] <input_file>" << endl;
     cout << "-o FILENAME               : specify the name of the output subtitle file, default output.srt\n\n";
     
@@ -587,12 +590,15 @@ int main(int argc, char **argv)
     SetConsoleOutputCP(CP_UTF8);
     ArgsParser args(argc, argv);
     if (argc < 2 || args.cmdOptionExists("-h")) {
-        showHelpPage();
+        showHelpPage(false);
         if (argc < 2) {
             system("pause");
         }
         return 0;
     }
+
+    showHelpPage(true);
+
     string filename = args.getLastArg();
     std::ifstream file(filename, std::ios::binary);
     if (!file.is_open() || !endsWith(filename, ".wav")) {

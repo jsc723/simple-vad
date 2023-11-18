@@ -56,6 +56,10 @@
             stdoutBox = new TextBox();
             label6 = new Label();
             minClearRatioPicker = new NumericUpDown();
+            label7 = new Label();
+            startMarginPicker = new NumericUpDown();
+            label8 = new Label();
+            endMarginPicker = new NumericUpDown();
             ((System.ComponentModel.ISupportInitialize)minFreqPicker).BeginInit();
             ((System.ComponentModel.ISupportInitialize)maxFreqPicker).BeginInit();
             ((System.ComponentModel.ISupportInitialize)energyThreshPicker).BeginInit();
@@ -64,6 +68,8 @@
             ((System.ComponentModel.ISupportInitialize)minDurationPicker).BeginInit();
             ((System.ComponentModel.ISupportInitialize)minGapPicker).BeginInit();
             ((System.ComponentModel.ISupportInitialize)minClearRatioPicker).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)startMarginPicker).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)endMarginPicker).BeginInit();
             SuspendLayout();
             // 
             // checkBoxUseFiltering
@@ -100,7 +106,7 @@
             // executeButton
             // 
             executeButton.Enabled = false;
-            executeButton.Location = new Point(613, 387);
+            executeButton.Location = new Point(613, 449);
             executeButton.Name = "executeButton";
             executeButton.Size = new Size(94, 29);
             executeButton.TabIndex = 4;
@@ -251,7 +257,6 @@
             label5.Size = new Size(73, 20);
             label5.TabIndex = 20;
             label5.Text = "最短间隔";
-            label5.Click += label5_Click;
             // 
             // minGapPicker
             // 
@@ -265,7 +270,7 @@
             // 
             // outputTextbox
             // 
-            outputTextbox.Location = new Point(198, 339);
+            outputTextbox.Location = new Point(198, 400);
             outputTextbox.Name = "outputTextbox";
             outputTextbox.ReadOnly = true;
             outputTextbox.Size = new Size(539, 27);
@@ -274,7 +279,7 @@
             // 
             // outputButton
             // 
-            outputButton.Location = new Point(57, 338);
+            outputButton.Location = new Point(57, 398);
             outputButton.Name = "outputButton";
             outputButton.Size = new Size(135, 29);
             outputButton.TabIndex = 21;
@@ -286,7 +291,7 @@
             // 
             stdoutBox.BackColor = SystemColors.Desktop;
             stdoutBox.ForeColor = SystemColors.Info;
-            stdoutBox.Location = new Point(57, 440);
+            stdoutBox.Location = new Point(57, 510);
             stdoutBox.Multiline = true;
             stdoutBox.Name = "stdoutBox";
             stdoutBox.ReadOnly = true;
@@ -315,12 +320,53 @@
             minClearRatioPicker.Value = new decimal(new int[] { 85, 0, 0, 131072 });
             minClearRatioPicker.ValueChanged += numericUpDown1_ValueChanged_1;
             // 
+            // label7
+            // 
+            label7.AutoSize = true;
+            label7.Location = new Point(48, 343);
+            label7.Name = "label7";
+            label7.Size = new Size(73, 20);
+            label7.TabIndex = 27;
+            label7.Text = "前方填充";
+            // 
+            // startMarginPicker
+            // 
+            startMarginPicker.Location = new Point(127, 341);
+            startMarginPicker.Maximum = new decimal(new int[] { 100000, 0, 0, 0 });
+            startMarginPicker.Name = "startMarginPicker";
+            startMarginPicker.Size = new Size(107, 27);
+            startMarginPicker.TabIndex = 26;
+            startMarginPicker.ValueChanged += numericUpDown1_ValueChanged_2;
+            // 
+            // label8
+            // 
+            label8.AutoSize = true;
+            label8.Location = new Point(263, 343);
+            label8.Name = "label8";
+            label8.Size = new Size(73, 20);
+            label8.TabIndex = 29;
+            label8.Text = "后方填充";
+            // 
+            // endMarginPicker
+            // 
+            endMarginPicker.Location = new Point(374, 341);
+            endMarginPicker.Maximum = new decimal(new int[] { 100000, 0, 0, 0 });
+            endMarginPicker.Name = "endMarginPicker";
+            endMarginPicker.Size = new Size(107, 27);
+            endMarginPicker.TabIndex = 28;
+            endMarginPicker.Value = new decimal(new int[] { 100, 0, 0, 0 });
+            endMarginPicker.ValueChanged += endMarginPicker_ValueChanged;
+            // 
             // Form1
             // 
             AllowDrop = true;
             AutoScaleDimensions = new SizeF(8F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(800, 655);
+            ClientSize = new Size(800, 723);
+            Controls.Add(label8);
+            Controls.Add(endMarginPicker);
+            Controls.Add(label7);
+            Controls.Add(startMarginPicker);
             Controls.Add(label6);
             Controls.Add(minClearRatioPicker);
             Controls.Add(stdoutBox);
@@ -358,6 +404,8 @@
             ((System.ComponentModel.ISupportInitialize)minDurationPicker).EndInit();
             ((System.ComponentModel.ISupportInitialize)minGapPicker).EndInit();
             ((System.ComponentModel.ISupportInitialize)minClearRatioPicker).EndInit();
+            ((System.ComponentModel.ISupportInitialize)startMarginPicker).EndInit();
+            ((System.ComponentModel.ISupportInitialize)endMarginPicker).EndInit();
             ResumeLayout(false);
             PerformLayout();
         }
@@ -389,5 +437,9 @@
         private TextBox stdoutBox;
         private Label label6;
         private NumericUpDown minClearRatioPicker;
+        private Label label7;
+        private NumericUpDown startMarginPicker;
+        private Label label8;
+        private NumericUpDown endMarginPicker;
     }
 }

@@ -260,9 +260,14 @@ namespace simple_vad_gui
             }
         }
 
-        private void label5_Click(object sender, EventArgs e)
+        private void numericUpDown1_ValueChanged_2(object sender, EventArgs e)
         {
+            updateParam("--start-margin", startMarginPicker.Value.ToString());
+        }
 
+        private void endMarginPicker_ValueChanged(object sender, EventArgs e)
+        {
+            updateParam("--end-margin", endMarginPicker.Value.ToString());
         }
     }
 
