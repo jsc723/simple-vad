@@ -41,8 +41,7 @@ void showHelpPage()
 ```
 
 ### 用户界面使用说明
-
-![img1](https://github.com/jsc723/simple-vad/img/img1.png)
-
 每个设置都和命令行的选项对应，更方便使用一些
+
+![img1](https://github.com/jsc723/simple-vad/blob/master/img/1.png?raw=true)
 
