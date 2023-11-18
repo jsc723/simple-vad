@@ -306,7 +306,7 @@
             label6.Name = "label6";
             label6.Size = new Size(89, 20);
             label6.TabIndex = 25;
-            label6.Text = "最小识别比";
+            label6.Text = "最小清晰度";
             // 
             // minClearRatioPicker
             // 
