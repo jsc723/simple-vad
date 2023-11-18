@@ -105,7 +105,7 @@ struct FreqInfo {
 
 void showHelpPage()
 {
-    cout << "Simple Voice Activity Detector by @jsc723 - version 1.2 - 2023\n\n";
+    cout << "Simple Voice Activity Detector by @jsc723 - version 1.2.1 - 2023\n\n";
     cout << "Usage: ./simple-vad.exe [options] <input_file>" << endl;
     cout << "-o FILENAME               : specify the name of the output subtitle file, default output.srt\n\n";
     
@@ -380,6 +380,7 @@ void doFiltering(std::vector<double>& input, size_t windowSize, size_t hopSize, 
     printf("min freq = %d\n", params.minFreq);
     printf("max freq = %d\n", params.maxFreq);
     printf("energy threshold = %lf\n", params.energyThreshold);
+    cout << fflush;
 
     size_t signalSize = input.size();
     size_t halfWindowSize = windowSize / 2;
@@ -727,6 +728,7 @@ int main(int argc, char **argv)
         writeChannelToWAV(params.filterOutputFile, channel1);
     }
 
+    cout << "perform voice activity detection..." << endl;
 
     for (size_t i = 0; i < resultLen; i++) {
         result1[i] = fvad_process(vad, data1 + i * windowSize, windowSize);
@@ -735,6 +737,8 @@ int main(int argc, char **argv)
         result2[i] = fvad_process(vad, data2 + i * windowSize, windowSize);
         result[i] = (result1[i] == 1 || result2[i] == 1);
     }
+
+    cout << "start post processing..." << endl;
 
     const int resPerSec = 1000 / windowDurationMS;
     postProcess(result, params, mergedFreqInfos);
@@ -752,6 +756,8 @@ int main(int argc, char **argv)
     end_print:
 
     fvad_free(vad);
+
+    cout << "generating result..." << endl;
 
     vector<bool> resultDelta(result.size() + 1);
     vector<string> timeStamps;
