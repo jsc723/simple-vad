@@ -44,3 +44,5 @@ Usage: ./simple-vad.exe [options] <input_file>
 
 ![img1](https://github.com/jsc723/simple-vad/blob/master/img/1.png?raw=true)
 
+使用方法参考[这篇文章](https://www.bilibili.com/read/cv27799878/)
+
