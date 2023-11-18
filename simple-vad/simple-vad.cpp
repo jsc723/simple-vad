@@ -162,11 +162,13 @@ void postProcess(vector<int>& result, const UserParameters &params, vector<FreqI
     const int thresh = params.mergeThreshold;
     const int minGapFrame = params.minGapDuration / 20;
 
-    std::cout << "--- post process ---" << "\n";
+    std::cout << "----- post process -----" << "\n";
     std::cout << "minValidDuration: " << minDurationMS << "ms" << "\n";
     std::cout << "mergeThreshold: " << thresh << "\n";
     std::cout << "minGapDuration: " << params.minGapDuration << "ms" << "\n";
-    std::cout << "minGapFrame: " << minGapFrame << std::endl;
+    std::cout << "minGapFrame: " << minGapFrame << "\n";
+    std::cout << "startMargin: " << params.startMargin << "ms" << endl;
+    std::cout << "endMargin: " << params.endMargin << "ms" << endl;
 
     
     list<Segment> segs;
@@ -409,7 +411,7 @@ void applyInverseFFT(const std::vector<std::complex<double>>& input, std::vector
 
 // Function to calculate Short-Time Fourier Transform (STFT)
 void doFiltering(std::vector<double>& input, size_t windowSize, size_t hopSize, const UserParameters &params, vector<FreqInfo>& freqInfos) {
-    cout << "--- filtering ---\n";
+    cout << "----- filtering -----\n";
     cout << "use filtering = " << params.useFiltering << "\n";
     if (!params.useFiltering) {
         return;
@@ -418,6 +420,7 @@ void doFiltering(std::vector<double>& input, size_t windowSize, size_t hopSize, 
     cout << "min freq = " << params.minFreq << "\n";
     cout << "max freq = " << params.maxFreq << "\n";
     cout << "energy threshold = " << params.energyThreshold << endl;
+    cout << "clear ratio = " << params.minValidTopFreqEnergyRatio << endl;
 
     size_t signalSize = input.size();
     size_t halfWindowSize = windowSize / 2;
