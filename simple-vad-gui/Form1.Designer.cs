@@ -296,7 +296,7 @@
             stdoutBox.Name = "stdoutBox";
             stdoutBox.ReadOnly = true;
             stdoutBox.ScrollBars = ScrollBars.Vertical;
-            stdoutBox.Size = new Size(689, 188);
+            stdoutBox.Size = new Size(689, 208);
             stdoutBox.TabIndex = 23;
             // 
             // label6
@@ -362,7 +362,7 @@
             AllowDrop = true;
             AutoScaleDimensions = new SizeF(8F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(800, 723);
+            ClientSize = new Size(800, 736);
             Controls.Add(label8);
             Controls.Add(endMarginPicker);
             Controls.Add(label7);
@@ -392,6 +392,7 @@
             Controls.Add(inputTextBox);
             Controls.Add(inputButton);
             Controls.Add(checkBoxUseFiltering);
+            FormBorderStyle = FormBorderStyle.FixedDialog;
             Name = "Form1";
             Text = "SimpleVAD GUI";
             DragDrop += Form1_DragDrop;
