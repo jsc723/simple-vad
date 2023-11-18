@@ -96,6 +96,8 @@ struct UserParameters {
     int mergeThreshold = 500;
     int minValidDuration = 1000; //ms
     int minGapDuration = 200; //ms
+    int startMargin = 0; //ms
+    int endMargin = 100; //ms
 };
 
 struct FreqInfo {
@@ -105,7 +107,7 @@ struct FreqInfo {
 
 void showHelpPage()
 {
-    cout << "Simple Voice Activity Detector by @jsc723 - version 1.2.4 - 2023\n\n";
+    cout << "Simple Voice Activity Detector by @jsc723 - version 1.3.0 - 2023\n\n";
     cout << "Usage: ./simple-vad.exe [options] <input_file>" << endl;
     cout << "-o FILENAME               : specify the name of the output subtitle file, default output.srt\n\n";
     
@@ -122,6 +124,8 @@ void showHelpPage()
     cout << "--min-gap-duration INT    : merge the gaps between voice segments shorter than this number, default 200(ms)\n\n";
     cout << "--min-clear-ratio FLOAT   : range 0-1, remove all segments which doesn't have enough portion of frames\n";
     cout << "                            with a top frequency bin energy to total energy above this number, default 0.85";
+    cout << "--start-margin INT        : add a margin before each segment, default 0(ms)\n";
+    cout << "--end-margin INT          : add a margin after each segment, default 100(ms)\n";
     cout << "-h                        : show this help page";
     cout << endl;
 }
@@ -132,10 +136,11 @@ struct Segment {
     int start;
     int length;
     int id;
+    int extended;
     int end() {
         return start + length;
     }
-    Segment(int start, int length, int id) : start(start), length(length), id(id) {}
+    Segment(int start, int length, int id) : start(start), length(length), id(id), extended(0) {}
 };
 
 
@@ -333,12 +338,45 @@ void postProcess(vector<int>& result, const UserParameters &params, vector<FreqI
             else {
                 for (int k = it->end(); k < it->start + minLen; k++) {
                     result[k] = 1;
+                    it->extended++;
                 }
                 it->length = minLen;
             }
         }
     }
+
     cout << "post process: merged " << merged << " segments" << endl;
+
+    const int endMarginLen = params.endMargin / windowDurationMS;
+    const int startMarginLen = params.startMargin / windowDurationMS;
+    const int minGap = 2;
+
+    for (auto it = segs.begin(); it != segs.end() && next(it) != segs.end(); it++) {
+        auto nxt = next(it);
+        int i;
+        for (i = it->end(); it->extended < endMarginLen && i + minGap + startMarginLen < nxt->start; i++) {
+            result[i] = 1;
+            it->extended++;
+        }
+        it->length = i - it->start;
+    }
+
+    segs.push_front(Segment(0, 0, -1)); // dummy header, so the first segment won't be a special case
+
+    for (auto it = segs.begin(); it != segs.end() && next(it) != segs.end(); it++) {
+        auto nxt = next(it);
+        const int wantedNewStart = nxt->start - startMarginLen;
+        const int originalEnd = nxt->end();
+        int i;
+        for (i = nxt->start - 1; i >= 0 && i > it->end() + minGap && i > wantedNewStart; i--) {
+            result[i] = 1;
+            nxt->extended++;
+        }
+        nxt->start = i + 1;
+        nxt->length = originalEnd - nxt->start;
+    }
+
+    segs.pop_front(); //delete dummy header
 
 
     if (result.back() == 1) {
@@ -349,14 +387,16 @@ void postProcess(vector<int>& result, const UserParameters &params, vector<FreqI
 
 // Function to apply FFT using FFTW
 void applyFFT(const std::vector<double>& input, std::vector<std::complex<double>>& output) {
-    fftw_plan plan = fftw_plan_dft_r2c_1d(input.size(), const_cast<double*>(input.data()), reinterpret_cast<fftw_complex*>(output.data()), FFTW_MEASURE);
+    fftw_plan plan = fftw_plan_dft_r2c_1d(input.size(), const_cast<double*>(input.data()), 
+        reinterpret_cast<fftw_complex*>(output.data()), FFTW_MEASURE);
     fftw_execute(plan);
     fftw_destroy_plan(plan);
 }
 
 // Function to apply Inverse FFT using FFTW
 void applyInverseFFT(const std::vector<std::complex<double>>& input, std::vector<double>& output) {
-    fftw_plan plan = fftw_plan_dft_c2r_1d(output.size(), reinterpret_cast<fftw_complex*>(const_cast<std::complex<double>*>(input.data())), output.data(), FFTW_MEASURE);
+    fftw_plan plan = fftw_plan_dft_c2r_1d(output.size(), 
+        reinterpret_cast<fftw_complex*>(const_cast<std::complex<double>*>(input.data())), output.data(), FFTW_MEASURE);
     fftw_execute(plan);
     fftw_destroy_plan(plan);
 
@@ -586,9 +626,16 @@ int main(int argc, char **argv)
     if (args.cmdOptionExists("--min-gap-duration")) {
         params.minGapDuration = args.getIntArg("--min-gap-duration", params.minGapDuration);
     }
+    if (args.cmdOptionExists("--start-margin")) {
+        params.startMargin = args.getIntArg("--start-margin", params.startMargin);
+    }
+    if (args.cmdOptionExists("--end-margin")) {
+        params.endMargin = args.getIntArg("--end-margin", params.endMargin);
+    }
     if (args.cmdOptionExists("--min-clear-ratio")) {
         params.minValidTopFreqEnergyRatio = args.getFloatArg("--min-clear-ratio", params.minValidTopFreqEnergyRatio);
     }
+
     
     
 
