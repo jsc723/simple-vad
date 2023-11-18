@@ -658,6 +658,11 @@ int main(int argc, char **argv)
     std::cout << "Block Align: " << header.blockAlign << " bytes" << std::endl;
     std::cout << "Bits Per Sample: " << header.bitsPerSample << " bits" << std::endl;
 
+    if (header.audioFormat != 1) {
+        std::cerr << "audio format must be 1" << std::endl;
+        return 1;
+    }
+
     if (header.numChannels != 2) {
         std::cerr << "num of channels must be 2" << std::endl;
         return 1;
