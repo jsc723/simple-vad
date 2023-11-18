@@ -2,7 +2,7 @@
 
 自动打轴工具
 
-读取一个WAV音频文件（必须是双声道），生成一个SRT字幕文件
+读取一个WAV音频文件，生成一个SRT字幕文件
 
 包含一个命令行工具(simple-vad.exe)和一个图形界面(simple-vad-gui.exe)
 
