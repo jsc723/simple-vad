@@ -107,7 +107,7 @@ struct FreqInfo {
 
 void showHelpPage(bool headerOnly)
 {
-    cout << "Simple Voice Activity Detector by @jsc723 - version 1.3.0 - 2023\n\n";
+    cout << "Simple Voice Activity Detector by @jsc723 - version 1.3.1 - 2023\n\n";
     if (headerOnly) {
         return;
     }
@@ -192,28 +192,31 @@ void postProcess(vector<int>& result, const UserParameters &params, vector<FreqI
         }
     }
 
-    std::cout << "min clear ratio = " << params.minValidTopFreqEnergyRatio << "\n";
-    int removedSeg = 0;
-    for (auto it = segs.begin(); it != segs.end(); ++it) {
-        if (it->length == 0) {
-            continue;
-        }
-        int validCount = 0;
-        for (int k = it->start; k < it->end(); k++) {
-            double ratio = (double)info[k].topEnergy / (info[k].totalEnergy + 1e-9);
-            if (ratio >= params.minValidTopFreqEnergyRatio) {
-                validCount++;
+    if (params.useFiltering) {
+        std::cout << "min clear ratio = " << params.minValidTopFreqEnergyRatio << "\n";
+        int removedSeg = 0;
+        for (auto it = segs.begin(); it != segs.end(); ++it) {
+            if (it->length == 0) {
+                continue;
             }
-        }
-        if ((double)validCount / it->length < minValidFrameInSegmentRatio) {
+            int validCount = 0;
             for (int k = it->start; k < it->end(); k++) {
-                result[k] = 0;
+                double ratio = (double)info[k].topEnergy / (info[k].totalEnergy + 1e-9);
+                if (ratio >= params.minValidTopFreqEnergyRatio) {
+                    validCount++;
+                }
             }
-            removedSeg++;
-            segs.erase(it);
+            if ((double)validCount / it->length < minValidFrameInSegmentRatio) {
+                for (int k = it->start; k < it->end(); k++) {
+                    result[k] = 0;
+                }
+                removedSeg++;
+                segs.erase(it);
+            }
         }
+        cout << "post process: removed " << removedSeg << " segments\n";
     }
-    cout << "post process: removed " << removedSeg << " segments\n";
+    
 
     int merged = 0;
     cout << "post process: segments count = " << segs.size() << "\n";
