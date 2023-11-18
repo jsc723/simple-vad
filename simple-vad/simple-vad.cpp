@@ -565,13 +565,15 @@ bool createDirectory(const std::wstring& path) {
     }
 }
 
-vector<FreqInfo> mergeFreqInfo(const vector<FreqInfo>& c1, const vector<FreqInfo>& c2) {
-    vector<FreqInfo> res(c1.size() / 2);
+vector<FreqInfo> mergeFreqInfo(const vector<vector<FreqInfo>>& cs) {
+    const int numOfSample = cs[0].size();
+    vector<FreqInfo> res(numOfSample / 2);
+    
     for (int i = 0; i < res.size(); i++) {
-        res[i].topEnergy = std::max<double>(c1[2 * i].topEnergy + c1[2 * i + 1].totalEnergy,
-            c2[2 * i].topEnergy + c2[2 * i + 1].totalEnergy);
-        res[i].totalEnergy = std::max<double>(c1[2 * i].totalEnergy + c1[2 * i + 1].totalEnergy,
-            c2[2 * i].totalEnergy + c2[2 * i + 1].totalEnergy);
+        for (int c = 0; c < cs.size(); c++) {
+            res[i].topEnergy = std::max<double>(res[i].topEnergy, cs[c][2 * i].topEnergy + cs[c][2 * i + 1].topEnergy);
+            res[i].totalEnergy = std::max<double>(res[i].totalEnergy, cs[c][2 * i].totalEnergy + cs[c][2 * i + 1].totalEnergy);
+        }
     }
     return res;
 }
@@ -663,8 +665,8 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    if (header.numChannels != 2) {
-        std::cerr << "num of channels must be 2" << std::endl;
+    if (header.numChannels < 1) {
+        std::cerr << "num of channels must be at least 1" << std::endl;
         return 1;
     }
     if (header.bitsPerSample != 16) {
@@ -695,64 +697,53 @@ int main(int argc, char **argv)
     uint32_t dataSize;
     file.read((char*)&dataSize, sizeof(dataSize));
 
-
-    std::vector<char> audioData(dataSize);
-    file.read(audioData.data(), audioData.size());
+    std::vector<short> audioData(dataSize / sizeof(short));
+    file.read(reinterpret_cast<char*>(audioData.data()), dataSize);
 
     int bytesPerSample = header.bitsPerSample / 8;
 
-    std::cout << "Data size: " << dataSize << " bits" << std::endl;
+    std::cout << "Data size: " << dataSize << " bytes" << std::endl;
+    if (dataSize % (header.numChannels * 2) != 0) {
+        std::cerr << "data size is incorrect" << std::endl;
+        return 1;
+    }
 
     // Separate the interleaved channels
-    vector<int16_t> channel1(dataSize / 4);
-    vector<int16_t> channel2(dataSize / 4);
+    vector<vector<int16_t>> channels(header.numChannels, vector<int16_t>(dataSize / (header.numChannels * 2)));
     
-    cout << "copying channel data..." << endl;
+    cout << "spliting channel data..." << endl;
 
-    for (size_t i = 0; i < audioData.size(); i += header.numChannels * bytesPerSample) {
-        int16_t temp;
-        // Copy left channel sample
-        std::copy(audioData.begin() + i, audioData.begin() + i + bytesPerSample, reinterpret_cast<char *>(&temp));
-        channel1[i / 4] = temp;
-        // Copy right channel sample
-        std::copy(audioData.begin() + i + bytesPerSample, audioData.begin() + i + header.numChannels * bytesPerSample, reinterpret_cast<char*>(&temp));
-        channel2[i / 4] = temp;
+    for (size_t i = 0; i < audioData.size(); i++) {
+        int k = i % header.numChannels;
+        channels[k][i / header.numChannels] = audioData[i];
     }
 
     audioData.clear();
 
+    //resampling if needed
     if (header.sampleRate != targetSampleRate) {
-        cout << "resampling..." << endl;
-        channel1 = resampleAudio(channel1, header.sampleRate, targetSampleRate);
-        channel2 = resampleAudio(channel2, header.sampleRate, targetSampleRate);
+        cout << "resampling to 8000 Hz..." << endl;
+        for (int k = 0; k < channels.size(); k++) {
+            channels[k] = resampleAudio(channels[k], header.sampleRate, targetSampleRate);
+        }
     }
-
-    printf("number of sample: %d\n", channel1.size());
-
-    int16_t* data1 = (int16_t*)channel1.data();
-    int16_t* data2 = (int16_t*)channel2.data();
+    const size_t numOfSample = channels[0].size();
+    cout << "number of sample: " << numOfSample << endl;
 
 
-    Fvad* vad;
-    vad = fvad_new();
-    if (!vad) {
-        std::cout << "error init";
-    }
-    fvad_set_mode(vad, params.vadMode);
-    fvad_set_sample_rate(vad, targetSampleRate);
 
-
-    const size_t resultLen = channel1.size() * 2 / windowSizeByte;
-    vector<int> result1(resultLen);
-    vector<int> result(resultLen);
+    const size_t resultLen = numOfSample * bytesPerSample / windowSizeByte;
+    
 
     printf("resultLen = %d\n", resultLen);
 
     cout << "apply fft and filter..." << endl;
     
-    vector<FreqInfo> c1Freqinfos = preProcess(data1, channel1.size(), params);
-    vector<FreqInfo> c2Freqinfos = preProcess(data2, channel2.size(), params);
-    vector<FreqInfo> mergedFreqInfos = mergeFreqInfo(c1Freqinfos, c2Freqinfos);
+    vector<vector<FreqInfo>> channelFreqInfos(header.numChannels);
+    for (int c = 0; c < header.numChannels; c++) {
+        channelFreqInfos[c] = preProcess(channels[c].data(), numOfSample, params);
+    }
+    vector<FreqInfo> mergedFreqInfos = mergeFreqInfo(channelFreqInfos);
 
     if (resultLen != mergedFreqInfos.size()) {
         cerr << "err merged freqinfo len" << endl;
@@ -762,17 +753,26 @@ int main(int argc, char **argv)
     
     if (params.filterOutputFile.size()) {
         cout << "writting filtered channel 1 data..." << endl;
-        writeChannelToWAV(params.filterOutputFile, channel1);
+        writeChannelToWAV(params.filterOutputFile, channels[0]);
     }
 
+    //perform voice activity detection
     cout << "perform voice activity detection..." << endl;
-
-    for (size_t i = 0; i < resultLen; i++) {
-        result1[i] = fvad_process(vad, data1 + i * windowSize, windowSize);
+    Fvad* vad;
+    vad = fvad_new();
+    if (!vad) {
+        std::cerr << "error init vad" << endl;
+        return 1;
     }
-    for (size_t i = 0; i < resultLen; i++) {
-        int res2 = fvad_process(vad, data2 + i * windowSize, windowSize);
-        result[i] = (result1[i] == 1 || res2 == 1);
+    fvad_set_mode(vad, params.vadMode);
+    fvad_set_sample_rate(vad, targetSampleRate);
+
+    vector<int> result(resultLen);
+    for (int k = 0; k < header.numChannels; k++) {
+        for (size_t i = 0; i < resultLen; i++) {
+            int r = fvad_process(vad, channels[k].data() + i * windowSize, windowSize);
+            result[i] = (result[i] == 1 || r == 1);
+        }
     }
 
     cout << "start post processing..." << endl;

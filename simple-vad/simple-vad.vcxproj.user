@@ -1,11 +1,11 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <LocalDebuggerCommandArguments>--out-filtered data/filtered.wav --start-margin 40 --end-margin 200 --min-clear-ratio 0.85 --energy-threshold 0.2 data/test-yuihi.wav</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>--out-filtered data/filtered2.wav --start-margin 40 --end-margin 200 --min-clear-ratio 0.85 --energy-threshold 0 data/filtered.wav</LocalDebuggerCommandArguments>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <LocalDebuggerCommandArguments>--out-filtered data/filtered.wav --start-margin 40 --end-margin 200 --min-clear-ratio 0.85 --energy-threshold 0.2 data/test-yuihi.wav</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>--out-filtered data/filtered2.wav --start-margin 40 --end-margin 200 --min-clear-ratio 0.85 --energy-threshold 0 data/filtered.wav</LocalDebuggerCommandArguments>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
 </Project>
