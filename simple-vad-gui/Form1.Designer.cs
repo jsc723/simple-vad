@@ -250,7 +250,8 @@
             label5.Name = "label5";
             label5.Size = new Size(73, 20);
             label5.TabIndex = 20;
-            label5.Text = "最断间隔";
+            label5.Text = "最短间隔";
+            label5.Click += label5_Click;
             // 
             // minGapPicker
             // 

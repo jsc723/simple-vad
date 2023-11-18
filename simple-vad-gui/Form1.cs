@@ -259,6 +259,11 @@ namespace simple_vad_gui
                 executeButton.Enabled = files[0].Length > 0;
             }
         }
+
+        private void label5_Click(object sender, EventArgs e)
+        {
+
+        }
     }
 
     public static class ProcessExtensions
