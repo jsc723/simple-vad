@@ -1,4 +1,4 @@
-# simple-vad
+# SimpleVAD
 
 自动打轴工具
 
