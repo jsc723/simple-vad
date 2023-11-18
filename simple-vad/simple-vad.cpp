@@ -105,7 +105,7 @@ struct FreqInfo {
 
 void showHelpPage()
 {
-    cout << "Simple Voice Activity Detector by @jsc723 - version 1.2.2 - 2023\n\n";
+    cout << "Simple Voice Activity Detector by @jsc723 - version 1.2.3 - 2023\n\n";
     cout << "Usage: ./simple-vad.exe [options] <input_file>" << endl;
     cout << "-o FILENAME               : specify the name of the output subtitle file, default output.srt\n\n";
     
@@ -157,11 +157,11 @@ void postProcess(vector<int>& result, const UserParameters &params, vector<FreqI
     const int thresh = params.mergeThreshold;
     const int minGapFrame = params.minGapDuration / 20;
 
-    printf("--- post process ---\n");
-    printf("minValidDuration: %dms\n", minDurationMS);
-    printf("mergeThreshold: %d\n", thresh);
-    printf("minGapDuration: %dms\n", params.minGapDuration);
-    printf("minGapFrame: %d\n", minGapFrame);
+    std::cout << "--- post process ---" << "\n";
+    std::cout << "minValidDuration: " << minDurationMS << "ms" << "\n";
+    std::cout << "mergeThreshold: " << thresh << "\n";
+    std::cout << "minGapDuration: " << params.minGapDuration << "ms" << "\n";
+    std::cout << "minGapFrame: " << minGapFrame << std::endl;
 
     
     list<Segment> segs;
@@ -182,7 +182,7 @@ void postProcess(vector<int>& result, const UserParameters &params, vector<FreqI
         }
     }
 
-    printf("min clear ratio = %lf\n", params.minValidTopFreqEnergyRatio);
+    std::cout << "min clear ratio = " << params.minValidTopFreqEnergyRatio << "\n";
     int removedSeg = 0;
     for (auto it = segs.begin(); it != segs.end(); ++it) {
         if (it->length == 0) {
@@ -203,10 +203,10 @@ void postProcess(vector<int>& result, const UserParameters &params, vector<FreqI
             segs.erase(it);
         }
     }
-    printf("post process: removed %d segments\n", removedSeg);
+    cout << "post process: removed " << removedSeg << " segments\n";
 
     int merged = 0;
-    printf("post process: segments count = %d\n", segs.size());
+    cout << "post process: segments count = " << segs.size() << "\n";
     auto cmp = [](const PQItem& p, const PQItem& q) {
         if (p.cost != q.cost) {
             return p.cost > q.cost;
@@ -338,9 +338,7 @@ void postProcess(vector<int>& result, const UserParameters &params, vector<FreqI
             }
         }
     }
-    printf("post process: merged %d segments\n", merged);
-
-
+    cout << "post process: merged " << merged << " segments" << endl;
 
 
     if (result.back() == 1) {
@@ -371,15 +369,15 @@ void applyInverseFFT(const std::vector<std::complex<double>>& input, std::vector
 
 // Function to calculate Short-Time Fourier Transform (STFT)
 void doFiltering(std::vector<double>& input, size_t windowSize, size_t hopSize, const UserParameters &params, vector<FreqInfo>& freqInfos) {
-    printf("--- filtering ---\n");
-    printf("use filtering = %d\n", params.useFiltering);
+    cout << "--- filtering ---\n";
+    cout << "use filtering = " << params.useFiltering << "\n";
     if (!params.useFiltering) {
         return;
     }
 
-    printf("min freq = %d\n", params.minFreq);
-    printf("max freq = %d\n", params.maxFreq);
-    printf("energy threshold = %lf\n", params.energyThreshold);
+    cout << "min freq = " << params.minFreq << "\n";
+    cout << "max freq = " << params.maxFreq << "\n";
+    cout << "energy threshold = " << params.energyThreshold << endl;
 
     size_t signalSize = input.size();
     size_t halfWindowSize = windowSize / 2;
