@@ -126,7 +126,7 @@ void showHelpPage(bool headerOnly)
     cout << "--min-valid-duration INT  : merge or extend the voice segments shorter than this number, default 1000(ms)\n";
     cout << "--min-gap-duration INT    : merge the gaps between voice segments shorter than this number, default 200(ms)\n\n";
     cout << "--min-clear-ratio FLOAT   : range 0-1, remove all segments which doesn't have enough portion of frames\n";
-    cout << "                            with a top frequency bin energy to total energy above this number, default 0.85";
+    cout << "                            with a top frequency bin energy to total energy above this number, default 0.85\n";
     cout << "--start-margin INT        : add a margin before each segment, default 0(ms)\n";
     cout << "--end-margin INT          : add a margin after each segment, default 100(ms)\n";
     cout << "-h                        : show this help page";
