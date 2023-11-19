@@ -152,265 +152,6 @@ UserParameters fillParams(ArgsParser& args) {
 }
 
 
-
-struct Segment {
-    int start;
-    int length;
-    int id;
-    int extended;
-    int end() {
-        return start + length;
-    }
-    Segment(int start, int length, int id) : start(start), length(length), id(id), extended(0) {}
-};
-
-
-struct PQItemData {
-    int leftId, rightId;
-    list<Segment>::iterator left;
-    list<Segment>::iterator right;
-};
-struct PQItem {
-    int cost;
-    PQItemData* data;
-    PQItem(int cost, PQItemData* data) : cost(cost), data(data) {}
-};
-
-//result and info must have the same length
-void postProcess(vector<int>& result, const UserParameters &params, vector<FreqInfo> &info) {
-    const int minDurationMS = params.minValidDuration;
-    const int minLen = minDurationMS / windowDurationMS; // 1 len unit = 20 ms
-    const int thresh = params.mergeThreshold;
-    const int minGapFrame = params.minGapDuration / 20;
-
-    std::cout << "----- post process -----" << "\n";
-    std::cout << "minValidDuration: " << minDurationMS << "ms" << "\n";
-    std::cout << "mergeThreshold: " << thresh << "\n";
-    std::cout << "minGapDuration: " << params.minGapDuration << "ms" << "\n";
-    std::cout << "minGapFrame: " << minGapFrame << "\n";
-    std::cout << "startMargin: " << params.startMargin << "ms" << endl;
-    std::cout << "endMargin: " << params.endMargin << "ms" << endl;
-
-    
-    list<Segment> segs;
-    int segNextId = 0;
-    Segment cur(0, 0, segNextId++);
-    for (int i = 0; i < result.size(); i++) {
-        if (result[i]) {
-            if (cur.length == 0) {
-                cur.start = i;
-            }
-            cur.length++;
-        }
-        else {
-            if (cur.length > 0) {
-                segs.push_back(cur);
-                cur = Segment(0, 0, segNextId++);
-            }
-        }
-    }
-
-    if (params.useFiltering) {
-        std::cout << "min clear ratio = " << params.minValidTopFreqEnergyRatio << "\n";
-        int removedSeg = 0;
-        for (auto it = segs.begin(); it != segs.end(); ++it) {
-            if (it->length == 0) {
-                continue;
-            }
-            int validCount = 0;
-            for (int k = it->start; k < it->end(); k++) {
-                double ratio = (double)info[k].topEnergy / (info[k].totalEnergy + 1e-9);
-                if (ratio >= params.minValidTopFreqEnergyRatio) {
-                    validCount++;
-                }
-            }
-            if ((double)validCount / it->length < minValidFrameInSegmentRatio) {
-                for (int k = it->start; k < it->end(); k++) {
-                    result[k] = 0;
-                }
-                removedSeg++;
-                segs.erase(it);
-            }
-        }
-        cout << "post process: removed " << removedSeg << " segments\n";
-    }
-    
-
-    int merged = 0;
-    cout << "post process: segments count = " << segs.size() << "\n";
-    auto cmp = [](const PQItem& p, const PQItem& q) {
-        if (p.cost != q.cost) {
-            return p.cost > q.cost;
-        }
-        if (p.data->leftId != q.data->leftId) {
-            return p.data->leftId < q.data->leftId;
-        }
-        return p.data->rightId < q.data->rightId;
-    };
-    
-    priority_queue<PQItem, vector<PQItem>, decltype(cmp)> pq(cmp);
-
-
-    auto computeCost = [minGapFrame](list<Segment>::iterator& left, list<Segment>::iterator& right) {
-        int d = right->start - left->end();
-        if (d < minGapFrame) {
-            return 0;
-        }
-        return min(left->length, right->length) * (right->start - left->end());
-    };
-
-    for (auto it = segs.begin(); it != segs.end() && std::next(it) != segs.end(); it++) {
-        auto nxt = std::next(it);
-        const int cost = computeCost(it, nxt);
-        if (cost < thresh) {
-            auto data = new PQItemData();
-            data->left = it;
-            data->right = nxt;
-            data->leftId = it->id;
-            data->rightId = nxt->id;
-            //printf("push it=%d[%d %d], nxt=%d[%d, %d], cost=%d\n", data->leftId, it->start, it->end(), data->rightId, nxt->start, nxt->end(), cost);
-            pq.emplace(cost, data);
-        }
-    }
-
-    unordered_set<int> removedIds;
-    while (!pq.empty() && segs.size() > 1) {
-        auto t = pq.top();
-        pq.pop();
-        //printf("pull it=%d[%d %d], nxt=%d[%d, %d], cost=%d\n", t.data->leftId, t.data->left->start, t.data->left->end(),
-        //    t.data->rightId, t.data->right->start, t.data->right->end(), t.cost);
-        if (t.cost > thresh) {
-            delete t.data;
-            t.data = nullptr;
-            continue;
-        }
-        if (removedIds.count(t.data->leftId) || removedIds.count(t.data->rightId)) {
-            //printf("ignore\n");
-            delete t.data;
-            t.data = nullptr;
-            continue;
-        }
-        merged++;
-        //printf("merged\n");
-        for (int k = t.data->left->end(); k < t.data->right->start; k++) {
-            result[k] = 1;
-        }
-        t.data->left->length = t.data->right->end() - t.data->left->start;
-        removedIds.emplace(t.data->rightId);
-        removedIds.emplace(t.data->leftId);
-        segs.erase(t.data->right);
-        t.data->left->id = segNextId++;
-        t.data->leftId = t.data->left->id;
-        
-        auto it = t.data->left;
-
-        if (it != segs.begin()) {
-            auto prv = std::prev(it);
-            int cost = computeCost(prv, it);
-            if (cost < thresh) {
-                auto data = new PQItemData();
-                data->left = prv;
-                data->right = it;
-                data->leftId = prv->id;
-                data->rightId = it->id;
-                pq.emplace(cost, data);
-                //printf("push it=%d[%d %d], nxt=%d[%d, %d], cost=%d\n", prv->id, prv->start, prv->end(), it->id, it->start, it->end(), cost);
-            }
-        }
-
-        if (std::next(it) != segs.end()) {
-            auto nxt = std::next(it);
-            int cost = computeCost(it, nxt);
-            if (cost < thresh) {
-                auto data = new PQItemData();
-                data->left = it;
-                data->right = nxt;
-                data->leftId = it->id;
-                data->rightId = nxt->id;
-                pq.emplace(cost, data);
-                //printf("push it=%d[%d %d], nxt=%d[%d, %d], cost=%d\n", it->id, it->start, it->end(), nxt->id, nxt->start, nxt->end(), cost);
-            }
-        }
-        
-    }
-    while (pq.size()) {
-        delete pq.top().data;
-        pq.pop();
-    }
-
-
-    for (auto it = segs.begin(); it != segs.end(); it++) {
-        while (it->length < minLen) {
-            auto nxt = std::next(it);
-            auto prv = std::prev(it);
-            if (it != segs.begin() && it->start - prv->end() < 10) {
-                merged++;
-                for (int k = prv->end(); k < it->start; k++) {
-                    result[k] = 1;
-                }
-                int it_end = it->end();
-                it->start = prv->start;
-                it->length = it_end - prv->start;
-                segs.erase(prv);
-            }
-            else if (nxt != segs.end() && nxt->start - it->end() <= minLen - it->length) {
-                merged++;
-                for (int k = it->end(); k < nxt->start; k++) {
-                    result[k] = 1;
-                }
-                it->length = nxt->end() - it->start;
-                segs.erase(nxt);
-            } 
-            else {
-                for (int k = it->end(); k < it->start + minLen; k++) {
-                    result[k] = 1;
-                    it->extended++;
-                }
-                it->length = minLen;
-            }
-        }
-    }
-
-    cout << "post process: merged " << merged << " segments" << endl;
-
-    const int endMarginLen = params.endMargin / windowDurationMS;
-    const int startMarginLen = params.startMargin / windowDurationMS;
-    const int minGap = 2;
-
-    for (auto it = segs.begin(); it != segs.end() && next(it) != segs.end(); it++) {
-        auto nxt = next(it);
-        int i;
-        for (i = it->end(); it->extended < endMarginLen && i + minGap + startMarginLen < nxt->start; i++) {
-            result[i] = 1;
-            it->extended++;
-        }
-        it->length = i - it->start;
-    }
-
-    segs.push_front(Segment(0, 0, -1)); // dummy header, so the first segment won't be a special case
-
-    for (auto it = segs.begin(); it != segs.end() && next(it) != segs.end(); it++) {
-        auto nxt = next(it);
-        const int wantedNewStart = nxt->start - startMarginLen;
-        const int originalEnd = nxt->end();
-        int i;
-        for (i = nxt->start - 1; i >= 0 && i > it->end() + minGap && i > wantedNewStart; i--) {
-            result[i] = 1;
-            nxt->extended++;
-        }
-        nxt->start = i + 1;
-        nxt->length = originalEnd - nxt->start;
-    }
-
-    segs.pop_front(); //delete dummy header
-
-
-    if (result.back() == 1) {
-        result.back() = 0;
-    }
-}
-
-
 // Function to apply FFT using FFTW
 void applyFFT(const std::vector<double>& input, std::vector<std::complex<double>>& output) {
     fftw_plan plan = fftw_plan_dft_r2c_1d(input.size(), const_cast<double*>(input.data()), 
@@ -524,6 +265,266 @@ vector<FreqInfo> preProcess(int16_t* buf, int buflen, const UserParameters &para
     }
     return freqInfos;
 }
+
+
+struct Segment {
+    int start;
+    int length;
+    int id;
+    int extended;
+    int end() {
+        return start + length;
+    }
+    Segment(int start, int length, int id) : start(start), length(length), id(id), extended(0) {}
+};
+
+
+struct PQItemData {
+    int leftId, rightId;
+    list<Segment>::iterator left;
+    list<Segment>::iterator right;
+};
+struct PQItem {
+    int cost;
+    PQItemData* data;
+    PQItem(int cost, PQItemData* data) : cost(cost), data(data) {}
+};
+
+//result and info must have the same length
+void postProcess(vector<int>& result, const UserParameters& params, vector<FreqInfo>& info) {
+    const int minDurationMS = params.minValidDuration;
+    const int minLen = minDurationMS / windowDurationMS; // 1 len unit = 20 ms
+    const int thresh = params.mergeThreshold;
+    const int minGapFrame = params.minGapDuration / 20;
+
+    std::cout << "----- post process -----" << "\n";
+    std::cout << "minValidDuration: " << minDurationMS << "ms" << "\n";
+    std::cout << "mergeThreshold: " << thresh << "\n";
+    std::cout << "minGapDuration: " << params.minGapDuration << "ms" << "\n";
+    std::cout << "minGapFrame: " << minGapFrame << "\n";
+    std::cout << "startMargin: " << params.startMargin << "ms" << endl;
+    std::cout << "endMargin: " << params.endMargin << "ms" << endl;
+
+
+    list<Segment> segs;
+    int segNextId = 0;
+    Segment cur(0, 0, segNextId++);
+    for (int i = 0; i < result.size(); i++) {
+        if (result[i]) {
+            if (cur.length == 0) {
+                cur.start = i;
+            }
+            cur.length++;
+        }
+        else {
+            if (cur.length > 0) {
+                segs.push_back(cur);
+                cur = Segment(0, 0, segNextId++);
+            }
+        }
+    }
+
+    if (params.useFiltering) {
+        std::cout << "min clear ratio = " << params.minValidTopFreqEnergyRatio << "\n";
+        int removedSeg = 0;
+        for (auto it = segs.begin(); it != segs.end(); ++it) {
+            if (it->length == 0) {
+                continue;
+            }
+            int validCount = 0;
+            for (int k = it->start; k < it->end(); k++) {
+                double ratio = (double)info[k].topEnergy / (info[k].totalEnergy + 1e-9);
+                if (ratio >= params.minValidTopFreqEnergyRatio) {
+                    validCount++;
+                }
+            }
+            if ((double)validCount / it->length < minValidFrameInSegmentRatio) {
+                for (int k = it->start; k < it->end(); k++) {
+                    result[k] = 0;
+                }
+                removedSeg++;
+                segs.erase(it);
+            }
+        }
+        cout << "post process: removed " << removedSeg << " segments\n";
+    }
+
+
+    int merged = 0;
+    cout << "post process: segments count = " << segs.size() << "\n";
+    auto cmp = [](const PQItem& p, const PQItem& q) {
+        if (p.cost != q.cost) {
+            return p.cost > q.cost;
+        }
+        if (p.data->leftId != q.data->leftId) {
+            return p.data->leftId < q.data->leftId;
+        }
+        return p.data->rightId < q.data->rightId;
+        };
+
+    priority_queue<PQItem, vector<PQItem>, decltype(cmp)> pq(cmp);
+
+
+    auto computeCost = [minGapFrame](list<Segment>::iterator& left, list<Segment>::iterator& right) {
+        int d = right->start - left->end();
+        if (d < minGapFrame) {
+            return 0;
+        }
+        return min(left->length, right->length) * (right->start - left->end());
+        };
+
+    for (auto it = segs.begin(); it != segs.end() && std::next(it) != segs.end(); it++) {
+        auto nxt = std::next(it);
+        const int cost = computeCost(it, nxt);
+        if (cost < thresh) {
+            auto data = new PQItemData();
+            data->left = it;
+            data->right = nxt;
+            data->leftId = it->id;
+            data->rightId = nxt->id;
+            //printf("push it=%d[%d %d], nxt=%d[%d, %d], cost=%d\n", data->leftId, it->start, it->end(), data->rightId, nxt->start, nxt->end(), cost);
+            pq.emplace(cost, data);
+        }
+    }
+
+    unordered_set<int> removedIds;
+    while (!pq.empty() && segs.size() > 1) {
+        auto t = pq.top();
+        pq.pop();
+        //printf("pull it=%d[%d %d], nxt=%d[%d, %d], cost=%d\n", t.data->leftId, t.data->left->start, t.data->left->end(),
+        //    t.data->rightId, t.data->right->start, t.data->right->end(), t.cost);
+        if (t.cost > thresh) {
+            delete t.data;
+            t.data = nullptr;
+            continue;
+        }
+        if (removedIds.count(t.data->leftId) || removedIds.count(t.data->rightId)) {
+            //printf("ignore\n");
+            delete t.data;
+            t.data = nullptr;
+            continue;
+        }
+        merged++;
+        //printf("merged\n");
+        for (int k = t.data->left->end(); k < t.data->right->start; k++) {
+            result[k] = 1;
+        }
+        t.data->left->length = t.data->right->end() - t.data->left->start;
+        removedIds.emplace(t.data->rightId);
+        removedIds.emplace(t.data->leftId);
+        segs.erase(t.data->right);
+        t.data->left->id = segNextId++;
+        t.data->leftId = t.data->left->id;
+
+        auto it = t.data->left;
+
+        if (it != segs.begin()) {
+            auto prv = std::prev(it);
+            int cost = computeCost(prv, it);
+            if (cost < thresh) {
+                auto data = new PQItemData();
+                data->left = prv;
+                data->right = it;
+                data->leftId = prv->id;
+                data->rightId = it->id;
+                pq.emplace(cost, data);
+                //printf("push it=%d[%d %d], nxt=%d[%d, %d], cost=%d\n", prv->id, prv->start, prv->end(), it->id, it->start, it->end(), cost);
+            }
+        }
+
+        if (std::next(it) != segs.end()) {
+            auto nxt = std::next(it);
+            int cost = computeCost(it, nxt);
+            if (cost < thresh) {
+                auto data = new PQItemData();
+                data->left = it;
+                data->right = nxt;
+                data->leftId = it->id;
+                data->rightId = nxt->id;
+                pq.emplace(cost, data);
+                //printf("push it=%d[%d %d], nxt=%d[%d, %d], cost=%d\n", it->id, it->start, it->end(), nxt->id, nxt->start, nxt->end(), cost);
+            }
+        }
+
+    }
+    while (pq.size()) {
+        delete pq.top().data;
+        pq.pop();
+    }
+
+
+    for (auto it = segs.begin(); it != segs.end(); it++) {
+        while (it->length < minLen) {
+            auto nxt = std::next(it);
+            auto prv = std::prev(it);
+            if (it != segs.begin() && it->start - prv->end() < 10) {
+                merged++;
+                for (int k = prv->end(); k < it->start; k++) {
+                    result[k] = 1;
+                }
+                int it_end = it->end();
+                it->start = prv->start;
+                it->length = it_end - prv->start;
+                segs.erase(prv);
+            }
+            else if (nxt != segs.end() && nxt->start - it->end() <= minLen - it->length) {
+                merged++;
+                for (int k = it->end(); k < nxt->start; k++) {
+                    result[k] = 1;
+                }
+                it->length = nxt->end() - it->start;
+                segs.erase(nxt);
+            }
+            else {
+                for (int k = it->end(); k < it->start + minLen; k++) {
+                    result[k] = 1;
+                    it->extended++;
+                }
+                it->length = minLen;
+            }
+        }
+    }
+
+    cout << "post process: merged " << merged << " segments" << endl;
+
+    const int endMarginLen = params.endMargin / windowDurationMS;
+    const int startMarginLen = params.startMargin / windowDurationMS;
+    const int minGap = 2;
+
+    for (auto it = segs.begin(); it != segs.end() && next(it) != segs.end(); it++) {
+        auto nxt = next(it);
+        int i;
+        for (i = it->end(); it->extended < endMarginLen && i + minGap + startMarginLen < nxt->start; i++) {
+            result[i] = 1;
+            it->extended++;
+        }
+        it->length = i - it->start;
+    }
+
+    segs.push_front(Segment(0, 0, -1)); // dummy header, so the first segment won't be a special case
+
+    for (auto it = segs.begin(); it != segs.end() && next(it) != segs.end(); it++) {
+        auto nxt = next(it);
+        const int wantedNewStart = nxt->start - startMarginLen;
+        const int originalEnd = nxt->end();
+        int i;
+        for (i = nxt->start - 1; i >= 0 && i > it->end() + minGap && i > wantedNewStart; i--) {
+            result[i] = 1;
+            nxt->extended++;
+        }
+        nxt->start = i + 1;
+        nxt->length = originalEnd - nxt->start;
+    }
+
+    segs.pop_front(); //delete dummy header
+
+
+    if (result.back() == 1) {
+        result.back() = 0;
+    }
+}
+
+
 
 
 // Resample audio data from sourceSampleRate to targetSampleRate
