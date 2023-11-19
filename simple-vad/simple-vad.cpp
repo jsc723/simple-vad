@@ -133,6 +133,24 @@ void showHelpPage(bool headerOnly)
     cout << endl;
 }
 
+UserParameters fillParams(ArgsParser& args) {
+    UserParameters params;
+    params.outputFilename = args.getCmdOption("-o");
+    params.useFiltering = !args.cmdOptionExists("--no-filtering");
+    args.fillIntIfExist("--min-freq", params.minFreq);
+    args.fillIntIfExist("--max-freq", params.maxFreq);
+    args.fillDoubleIfExist("--energy-threshold", params.energyThreshold);
+    args.fillStringIfExist("--out-filtered", params.filterOutputFile);
+    args.fillIntIfExist("--vad-mode", params.vadMode);
+    args.fillIntIfExist("--merge-threshold", params.mergeThreshold);
+    args.fillIntIfExist("--min-valid-duration", params.minValidDuration);
+    args.fillIntIfExist("--min-gap-duration", params.minGapDuration);
+    args.fillIntIfExist("--start-margin", params.startMargin);
+    args.fillIntIfExist("--end-margin", params.endMargin);
+    args.fillDoubleIfExist("--min-clear-ratio", params.minValidTopFreqEnergyRatio);
+    return params;
+}
+
 
 
 struct Segment {
@@ -609,50 +627,8 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    UserParameters params;
-    if (args.cmdOptionExists("-o")) {
-        params.outputFilename = args.getCmdOption("-o");
-    }
-    if (args.cmdOptionExists("--no-filtering")) {
-        params.useFiltering = false;
-    }
-    if (args.cmdOptionExists("--min-freq")) {
-        params.minFreq = args.getIntArg("--min-freq", params.minFreq);
-    }
-    if (args.cmdOptionExists("--max-freq")) {
-        params.maxFreq = args.getIntArg("--max-freq", params.maxFreq);
-    }
-    if (args.cmdOptionExists("--energy-threshold")) {
-        params.energyThreshold = args.getFloatArg("--energy-threshold", params.energyThreshold);
-    }
-    if (args.cmdOptionExists("--out-filtered")) {
-        params.filterOutputFile = args.getCmdOption("--out-filtered");
-    }
-    if (args.cmdOptionExists("--vad-mode")) {
-        params.vadMode = args.getIntArg("--vad-mode", params.vadMode);
-    }
-    if (args.cmdOptionExists("--merge-threshold")) {
-        params.mergeThreshold = args.getIntArg("--merge-threshold", params.mergeThreshold);
-    }
-    if (args.cmdOptionExists("--min-valid-duration")) {
-        params.minValidDuration = args.getIntArg("--min-valid-duration", params.minValidDuration);
-    }
-    if (args.cmdOptionExists("--min-gap-duration")) {
-        params.minGapDuration = args.getIntArg("--min-gap-duration", params.minGapDuration);
-    }
-    if (args.cmdOptionExists("--start-margin")) {
-        params.startMargin = args.getIntArg("--start-margin", params.startMargin);
-    }
-    if (args.cmdOptionExists("--end-margin")) {
-        params.endMargin = args.getIntArg("--end-margin", params.endMargin);
-    }
-    if (args.cmdOptionExists("--min-clear-ratio")) {
-        params.minValidTopFreqEnergyRatio = args.getFloatArg("--min-clear-ratio", params.minValidTopFreqEnergyRatio);
-    }
-
+    UserParameters params = fillParams(args);
     
-    
-
     WavHeader header;
     file.read(reinterpret_cast<char*>(&header), sizeof(WavHeader));
 
