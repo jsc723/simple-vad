@@ -116,7 +116,7 @@
             // 
             // minFreqPicker
             // 
-            minFreqPicker.Increment = new decimal(new int[] { 10, 0, 0, 0 });
+            minFreqPicker.Increment = new decimal(new int[] { 50, 0, 0, 0 });
             minFreqPicker.Location = new Point(298, 76);
             minFreqPicker.Maximum = new decimal(new int[] { 8000, 0, 0, 0 });
             minFreqPicker.Name = "minFreqPicker";
@@ -144,7 +144,7 @@
             // 
             // maxFreqPicker
             // 
-            maxFreqPicker.Increment = new decimal(new int[] { 10, 0, 0, 0 });
+            maxFreqPicker.Increment = new decimal(new int[] { 50, 0, 0, 0 });
             maxFreqPicker.Location = new Point(560, 76);
             maxFreqPicker.Maximum = new decimal(new int[] { 8000, 0, 0, 0 });
             maxFreqPicker.Name = "maxFreqPicker";
@@ -165,7 +165,7 @@
             // 
             // energyThreshPicker
             // 
-            energyThreshPicker.DecimalPlaces = 4;
+            energyThreshPicker.DecimalPlaces = 3;
             energyThreshPicker.Increment = new decimal(new int[] { 1, 0, 0, 196608 });
             energyThreshPicker.Location = new Point(298, 124);
             energyThreshPicker.Maximum = new decimal(new int[] { 10, 0, 0, 65536 });
@@ -241,6 +241,7 @@
             // 
             // minDurationPicker
             // 
+            minDurationPicker.Increment = new decimal(new int[] { 20, 0, 0, 0 });
             minDurationPicker.Location = new Point(374, 228);
             minDurationPicker.Maximum = new decimal(new int[] { 100000, 0, 0, 0 });
             minDurationPicker.Name = "minDurationPicker";
@@ -260,6 +261,7 @@
             // 
             // minGapPicker
             // 
+            minGapPicker.Increment = new decimal(new int[] { 20, 0, 0, 0 });
             minGapPicker.Location = new Point(600, 228);
             minGapPicker.Maximum = new decimal(new int[] { 100000, 0, 0, 0 });
             minGapPicker.Name = "minGapPicker";
@@ -311,7 +313,7 @@
             // minClearRatioPicker
             // 
             minClearRatioPicker.DecimalPlaces = 3;
-            minClearRatioPicker.Increment = new decimal(new int[] { 1, 0, 0, 196608 });
+            minClearRatioPicker.Increment = new decimal(new int[] { 1, 0, 0, 131072 });
             minClearRatioPicker.Location = new Point(374, 282);
             minClearRatioPicker.Maximum = new decimal(new int[] { 1, 0, 0, 0 });
             minClearRatioPicker.Name = "minClearRatioPicker";
@@ -331,6 +333,7 @@
             // 
             // startMarginPicker
             // 
+            startMarginPicker.Increment = new decimal(new int[] { 20, 0, 0, 0 });
             startMarginPicker.Location = new Point(127, 341);
             startMarginPicker.Maximum = new decimal(new int[] { 100000, 0, 0, 0 });
             startMarginPicker.Name = "startMarginPicker";
@@ -349,6 +352,7 @@
             // 
             // endMarginPicker
             // 
+            endMarginPicker.Increment = new decimal(new int[] { 20, 0, 0, 0 });
             endMarginPicker.Location = new Point(374, 341);
             endMarginPicker.Maximum = new decimal(new int[] { 100000, 0, 0, 0 });
             endMarginPicker.Name = "endMarginPicker";
@@ -394,7 +398,7 @@
             Controls.Add(checkBoxUseFiltering);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             Name = "Form1";
-            Text = "SimpleVAD GUI";
+            Text = "SimpleVAD v1.3.1  GUI";
             DragDrop += Form1_DragDrop;
             DragEnter += Form1_DragEnter;
             ((System.ComponentModel.ISupportInitialize)minFreqPicker).EndInit();
