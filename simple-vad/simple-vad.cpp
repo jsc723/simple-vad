@@ -41,7 +41,9 @@ const size_t windowSize = windowDurationMS * 8; // num of sample (short) per win
 const size_t hopSize = windowSize / 2;
 const size_t windowSizeByte = windowSize * sizeof(short);
 const size_t targetSampleRate = 8000;
+const size_t maxPossibleFreq = targetSampleRate / 2;
 const double minValidFrameInSegmentRatio = 0.3;
+const double topBinPercentage = 0.1;
 
 WavHeader CreateWavHeaderTemplate() {
     WavHeader h;
@@ -86,19 +88,19 @@ struct UserParameters {
     string outputFilename = "output.srt";
 
     bool useFiltering = true;
-    int minFreq = 0;
-    int maxFreq = targetSampleRate;
+    int minFreq = 100;
+    int maxFreq = 2000;
     double energyThreshold = 0.0;
     string filterOutputFile = "";
 
     int vadMode = 1; //0-3
 
-    double minValidTopFreqEnergyRatio = 0.85;
+    double minValidTopFreqEnergyRatio = 0.7;
     int mergeThreshold = 500;
     int minValidDuration = 1000; //ms
     int minGapDuration = 200; //ms
-    int startMargin = 0; //ms
-    int endMargin = 100; //ms
+    int startMargin = 20; //ms
+    int endMargin = 20; //ms
 
     bool printDebugInfo = false;
 };
@@ -110,7 +112,7 @@ struct FreqInfo {
 
 void showHelpPage(bool headerOnly)
 {
-    cout << "Simple Voice Activity Detector by @jsc723 - version 1.3.2 - 2023\n\n";
+    cout << "Simple Voice Activity Detector by @jsc723 - version 1.4.0 - 2023\n\n";
     if (headerOnly) {
         return;
     }
@@ -118,9 +120,10 @@ void showHelpPage(bool headerOnly)
     cout << "-o FILENAME               : specify the name of the output subtitle file, default output.srt\n\n";
     
     cout << "--no-filtering            : do not perform filtering, default disabled\n";
-    cout << "--min-freq  INT           : filter out all frequency below this number, default 0\n";
-    cout << "--max-freq  INT           : filter out all frequency above this number, default 8000\n";
-    cout << "--energy-threshold FLOAT  : filter out all sound frame whose energy is below this number, default 0.001\n";
+    cout << "--min-freq  INT           : lowerest frequency to consider when computing clear ratio, default 100\n";
+    cout << "--max-freq  INT           : highest frequency to consider when computing clear ratio, default 2000\n";
+    cout << "--energy-threshold FLOAT  : filter out all sound frame whose energy is below this number, default 0\n";
+    cout << "--min-clear-ratio FLOAT   : range 0-1, remove all segments which doesn't have enough portion of frames\n";
     cout << "--out-filtered FILENAME   : output the audio after filtering, before it is passed to vad, no output by default\n\n";
 
     cout << "--vad-mode INT            : set the mode for the fvad library, larger => less chance to be classified as voice,\n";
@@ -128,20 +131,21 @@ void showHelpPage(bool headerOnly)
     cout << "--merge-threshold INT     : merge small and close voice segments, larger => merge more, default 500\n";
     cout << "--min-valid-duration INT  : merge or extend the voice segments shorter than this number, default 1000(ms)\n";
     cout << "--min-gap-duration INT    : merge the gaps between voice segments shorter than this number, default 200(ms)\n\n";
-    cout << "--min-clear-ratio FLOAT   : range 0-1, remove all segments which doesn't have enough portion of frames\n";
-    cout << "                            with a top frequency bin energy to total energy above this number, default 0.85\n";
-    cout << "--start-margin INT        : add a margin before each segment, default 0(ms)\n";
-    cout << "--end-margin INT          : add a margin after each segment, default 100(ms)\n";
+    cout << "                            with a top frequency bin energy to total energy above this number, default 0.7\n";
+    cout << "--start-margin INT        : add a margin before each segment, default 20(ms)\n";
+    cout << "--end-margin INT          : add a margin after each segment, default 20(ms)\n";
     cout << "-h                        : show this help page";
     cout << endl;
 }
 
 UserParameters fillParams(ArgsParser& args) {
     UserParameters params;
-    params.outputFilename = args.getCmdOption("-o");
+    args.fillStringIfExist("-o", params.outputFilename);
     params.useFiltering = !args.cmdOptionExists("--no-filtering");
     args.fillIntIfExist("--min-freq", params.minFreq);
+    params.minFreq = max(0, params.minFreq);
     args.fillIntIfExist("--max-freq", params.maxFreq);
+    params.maxFreq = min(maxPossibleFreq, params.maxFreq);
     args.fillDoubleIfExist("--energy-threshold", params.energyThreshold);
     args.fillStringIfExist("--out-filtered", params.filterOutputFile);
     args.fillIntIfExist("--vad-mode", params.vadMode);
@@ -224,7 +228,7 @@ void doFiltering(std::vector<double>& input, size_t windowSize, size_t hopSize, 
     std::vector<double> outframe(windowSize);
 
     // Apply FFT to each frame
-    for (size_t i = 1; i < numFrames && i < 8000; ++i) {
+    for (size_t i = 1; i < numFrames; ++i) {
         // Extract the frame from the input signal
         std::copy(input.begin() + i * hopSize - halfWindowSize, input.begin() + i * hopSize + halfWindowSize, frame.begin());
 
@@ -240,27 +244,29 @@ void doFiltering(std::vector<double>& input, size_t windowSize, size_t hopSize, 
 
         applyFFT(frame, freq);
 
-        for (int j = 0; j < freqSize; j++) {
-            int f = j * sampleResolution;
-            freq[j] = (f >= params.minFreq && f <= params.maxFreq) ? freq[j] : 0;
-        }
 
         double energyFreq = 1e-9;
         vector<double> binEnergy(freq.size());
-        for (int i = 0; i < freq.size(); i++) {
-            double norm = std::abs(freq[i]);
+        for (int k = 0; k < freq.size(); k++) {
+            double norm = std::abs(freq[k]);
             double e = norm * norm;
-            binEnergy[i] = e / freq.size();
+            binEnergy[k] = e / freq.size();
             energyFreq += e;
         }
         energyFreq /= freq.size(); //a little smaller than energy due to loss during fft
 
-        std::sort(binEnergy.rbegin(), binEnergy.rend());
+        int iStart = params.minFreq / sampleResolution;
+        int iEnd = params.maxFreq / sampleResolution + 1;
+        iEnd = min(iEnd, binEnergy.size());
+
+        std::sort(binEnergy.begin() + iStart, binEnergy.begin() + iEnd);
+        std::reverse(binEnergy.begin() + iStart, binEnergy.begin() + iEnd);
 
         double topEnergy = 0;
-        for (int i = 0; i < binEnergy.size() * 0.1; i++) {
-            topEnergy += binEnergy[i];
+        for (int k = 0; k < min<int>(binEnergy.size() * topBinPercentage, iEnd - iStart); k++) {
+            topEnergy += binEnergy[iStart + k];
         }
+        //printf("t = %dms, %lf %lf %lf\n", i * 10, energyFreq, topEnergy, topEnergy / energyFreq);
 
         freqInfos[i].totalEnergy = energyFreq;
         freqInfos[i].topEnergy = topEnergy;
@@ -810,7 +816,7 @@ int main(int argc, char **argv)
 
     FILE* outsrt = fopen(params.outputFilename.c_str(), "w");
     if (!outsrt) {
-        std::cerr << "Error opening the output.txt." << std::endl;
+        std::cerr << "Error opening the output " << params.outputFilename <<  std::endl;
         return 1;
     }
     fprintf(outsrt, "\n");

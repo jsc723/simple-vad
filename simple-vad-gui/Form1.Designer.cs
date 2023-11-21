@@ -117,11 +117,12 @@
             // minFreqPicker
             // 
             minFreqPicker.Increment = new decimal(new int[] { 50, 0, 0, 0 });
-            minFreqPicker.Location = new Point(298, 76);
+            minFreqPicker.Location = new Point(330, 76);
             minFreqPicker.Maximum = new decimal(new int[] { 8000, 0, 0, 0 });
             minFreqPicker.Name = "minFreqPicker";
             minFreqPicker.Size = new Size(107, 27);
             minFreqPicker.TabIndex = 5;
+            minFreqPicker.Value = new decimal(new int[] { 100, 0, 0, 0 });
             minFreqPicker.ValueChanged += minFreqPicker_ValueChanged;
             // 
             // minFreqLabel
@@ -129,28 +130,28 @@
             minFreqLabel.AutoSize = true;
             minFreqLabel.Location = new Point(219, 78);
             minFreqLabel.Name = "minFreqLabel";
-            minFreqLabel.Size = new Size(73, 20);
+            minFreqLabel.Size = new Size(105, 20);
             minFreqLabel.TabIndex = 6;
-            minFreqLabel.Text = "最小频率";
+            minFreqLabel.Text = "最小人声频率";
             // 
             // maxFreqLabel
             // 
             maxFreqLabel.AutoSize = true;
-            maxFreqLabel.Location = new Point(481, 77);
+            maxFreqLabel.Location = new Point(479, 78);
             maxFreqLabel.Name = "maxFreqLabel";
-            maxFreqLabel.Size = new Size(73, 20);
+            maxFreqLabel.Size = new Size(105, 20);
             maxFreqLabel.TabIndex = 8;
-            maxFreqLabel.Text = "最大频率";
+            maxFreqLabel.Text = "最大人声频率";
             // 
             // maxFreqPicker
             // 
             maxFreqPicker.Increment = new decimal(new int[] { 50, 0, 0, 0 });
-            maxFreqPicker.Location = new Point(560, 76);
-            maxFreqPicker.Maximum = new decimal(new int[] { 8000, 0, 0, 0 });
+            maxFreqPicker.Location = new Point(600, 76);
+            maxFreqPicker.Maximum = new decimal(new int[] { 4000, 0, 0, 0 });
             maxFreqPicker.Name = "maxFreqPicker";
             maxFreqPicker.Size = new Size(107, 27);
             maxFreqPicker.TabIndex = 7;
-            maxFreqPicker.Value = new decimal(new int[] { 8000, 0, 0, 0 });
+            maxFreqPicker.Value = new decimal(new int[] { 2000, 0, 0, 0 });
             maxFreqPicker.ValueChanged += maxFreqPicker_ValueChanged;
             // 
             // label1
@@ -167,7 +168,7 @@
             // 
             energyThreshPicker.DecimalPlaces = 3;
             energyThreshPicker.Increment = new decimal(new int[] { 1, 0, 0, 196608 });
-            energyThreshPicker.Location = new Point(298, 124);
+            energyThreshPicker.Location = new Point(330, 124);
             energyThreshPicker.Maximum = new decimal(new int[] { 10, 0, 0, 65536 });
             energyThreshPicker.Name = "energyThreshPicker";
             energyThreshPicker.Size = new Size(107, 27);
@@ -222,6 +223,7 @@
             // 
             // mergeThresholdPicker
             // 
+            mergeThresholdPicker.Increment = new decimal(new int[] { 50, 0, 0, 0 });
             mergeThresholdPicker.Location = new Point(127, 286);
             mergeThresholdPicker.Maximum = new decimal(new int[] { 100000, 0, 0, 0 });
             mergeThresholdPicker.Name = "mergeThresholdPicker";
@@ -233,7 +235,7 @@
             // label4
             // 
             label4.AutoSize = true;
-            label4.Location = new Point(263, 230);
+            label4.Location = new Point(263, 288);
             label4.Name = "label4";
             label4.Size = new Size(105, 20);
             label4.TabIndex = 18;
@@ -242,7 +244,7 @@
             // minDurationPicker
             // 
             minDurationPicker.Increment = new decimal(new int[] { 20, 0, 0, 0 });
-            minDurationPicker.Location = new Point(374, 228);
+            minDurationPicker.Location = new Point(374, 286);
             minDurationPicker.Maximum = new decimal(new int[] { 100000, 0, 0, 0 });
             minDurationPicker.Name = "minDurationPicker";
             minDurationPicker.Size = new Size(107, 27);
@@ -253,7 +255,7 @@
             // label5
             // 
             label5.AutoSize = true;
-            label5.Location = new Point(521, 230);
+            label5.Location = new Point(521, 288);
             label5.Name = "label5";
             label5.Size = new Size(73, 20);
             label5.TabIndex = 20;
@@ -262,7 +264,7 @@
             // minGapPicker
             // 
             minGapPicker.Increment = new decimal(new int[] { 20, 0, 0, 0 });
-            minGapPicker.Location = new Point(600, 228);
+            minGapPicker.Location = new Point(600, 286);
             minGapPicker.Maximum = new decimal(new int[] { 100000, 0, 0, 0 });
             minGapPicker.Name = "minGapPicker";
             minGapPicker.Size = new Size(107, 27);
@@ -304,7 +306,7 @@
             // label6
             // 
             label6.AutoSize = true;
-            label6.Location = new Point(264, 284);
+            label6.Location = new Point(479, 126);
             label6.Name = "label6";
             label6.Size = new Size(89, 20);
             label6.TabIndex = 25;
@@ -313,13 +315,13 @@
             // minClearRatioPicker
             // 
             minClearRatioPicker.DecimalPlaces = 3;
-            minClearRatioPicker.Increment = new decimal(new int[] { 1, 0, 0, 131072 });
-            minClearRatioPicker.Location = new Point(374, 282);
+            minClearRatioPicker.Increment = new decimal(new int[] { 1, 0, 0, 65536 });
+            minClearRatioPicker.Location = new Point(600, 124);
             minClearRatioPicker.Maximum = new decimal(new int[] { 1, 0, 0, 0 });
             minClearRatioPicker.Name = "minClearRatioPicker";
             minClearRatioPicker.Size = new Size(107, 27);
             minClearRatioPicker.TabIndex = 24;
-            minClearRatioPicker.Value = new decimal(new int[] { 85, 0, 0, 131072 });
+            minClearRatioPicker.Value = new decimal(new int[] { 7, 0, 0, 65536 });
             minClearRatioPicker.ValueChanged += numericUpDown1_ValueChanged_1;
             // 
             // label7
@@ -339,6 +341,7 @@
             startMarginPicker.Name = "startMarginPicker";
             startMarginPicker.Size = new Size(107, 27);
             startMarginPicker.TabIndex = 26;
+            startMarginPicker.Value = new decimal(new int[] { 20, 0, 0, 0 });
             startMarginPicker.ValueChanged += numericUpDown1_ValueChanged_2;
             // 
             // label8
@@ -358,7 +361,7 @@
             endMarginPicker.Name = "endMarginPicker";
             endMarginPicker.Size = new Size(107, 27);
             endMarginPicker.TabIndex = 28;
-            endMarginPicker.Value = new decimal(new int[] { 100, 0, 0, 0 });
+            endMarginPicker.Value = new decimal(new int[] { 20, 0, 0, 0 });
             endMarginPicker.ValueChanged += endMarginPicker_ValueChanged;
             // 
             // Form1
@@ -398,7 +401,7 @@
             Controls.Add(checkBoxUseFiltering);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             Name = "Form1";
-            Text = "SimpleVAD v1.3.1  GUI";
+            Text = "SimpleVAD v1.4.0  GUI";
             DragDrop += Form1_DragDrop;
             DragEnter += Form1_DragEnter;
             ((System.ComponentModel.ISupportInitialize)minFreqPicker).EndInit();
