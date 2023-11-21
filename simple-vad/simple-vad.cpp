@@ -12,6 +12,7 @@
 #include <queue>
 #include <unordered_set>
 #include <algorithm>
+#include <cmath>
 #include <windows.h>
 #include "fvad.h"
 #include "fftw3.h"
@@ -98,6 +99,8 @@ struct UserParameters {
     int minGapDuration = 200; //ms
     int startMargin = 0; //ms
     int endMargin = 100; //ms
+
+    bool printDebugInfo = false;
 };
 
 struct FreqInfo {
@@ -107,7 +110,7 @@ struct FreqInfo {
 
 void showHelpPage(bool headerOnly)
 {
-    cout << "Simple Voice Activity Detector by @jsc723 - version 1.3.1 - 2023\n\n";
+    cout << "Simple Voice Activity Detector by @jsc723 - version 1.3.2 - 2023\n\n";
     if (headerOnly) {
         return;
     }
@@ -173,6 +176,27 @@ void applyInverseFFT(const std::vector<std::complex<double>>& input, std::vector
     }
 }
 
+double calcEntropy(const vector<double>& binEnergy) {
+    vector<double> prob(binEnergy.size());
+    double total = 0.0;
+    for (int i = 0; i < prob.size(); i++) {
+        total += binEnergy[i];
+    }
+    if (total == 0.0) {
+        return 0;
+    }
+    for (int i = 0; i < prob.size(); i++) {
+        prob[i] = binEnergy[i] / total;
+    }
+    double entropy = 0.0;
+    for (double p : prob) {
+        if (p > 0.0) {
+            entropy -= p * log2(p);
+        }
+    }
+    return entropy / log2(binEnergy.size());
+}
+
 
 // Function to calculate Short-Time Fourier Transform (STFT)
 void doFiltering(std::vector<double>& input, size_t windowSize, size_t hopSize, const UserParameters &params, vector<FreqInfo>& freqInfos) {
@@ -200,7 +224,7 @@ void doFiltering(std::vector<double>& input, size_t windowSize, size_t hopSize, 
     std::vector<double> outframe(windowSize);
 
     // Apply FFT to each frame
-    for (size_t i = 1; i < numFrames; ++i) {
+    for (size_t i = 1; i < numFrames && i < 8000; ++i) {
         // Extract the frame from the input signal
         std::copy(input.begin() + i * hopSize - halfWindowSize, input.begin() + i * hopSize + halfWindowSize, frame.begin());
 
@@ -230,6 +254,7 @@ void doFiltering(std::vector<double>& input, size_t windowSize, size_t hopSize, 
             energyFreq += e;
         }
         energyFreq /= freq.size(); //a little smaller than energy due to loss during fft
+
         std::sort(binEnergy.rbegin(), binEnergy.rend());
 
         double topEnergy = 0;
@@ -272,7 +297,7 @@ struct Segment {
     int length;
     int id;
     int extended;
-    int end() {
+    int end() const {
         return start + length;
     }
     Segment(int start, int length, int id) : start(start), length(length), id(id), extended(0) {}
@@ -291,7 +316,7 @@ struct PQItem {
 };
 
 //result and info must have the same length
-void postProcess(vector<int>& result, const UserParameters& params, vector<FreqInfo>& info) {
+list<Segment> postProcess(vector<int>& result, const UserParameters& params, vector<FreqInfo>& info) {
     const int minDurationMS = params.minValidDuration;
     const int minLen = minDurationMS / windowDurationMS; // 1 len unit = 20 ms
     const int thresh = params.mergeThreshold;
@@ -522,8 +547,21 @@ void postProcess(vector<int>& result, const UserParameters& params, vector<FreqI
     if (result.back() == 1) {
         result.back() = 0;
     }
+    return segs;
 }
 
+
+string toTimestamp(int t) {
+    static char tmbuf[128];
+    int totalMS = windowDurationMS * t;
+    int totalSec = totalMS / 1000;
+    int ms = totalMS % 1000;
+    int s = totalSec % 60;
+    int m = (totalSec % 3600) / 60;
+    int h = totalSec / 3600;
+    sprintf(tmbuf, "%02d:%02d:%02d,%03d", h, m, s, ms);
+    return string(tmbuf);
+}
 
 
 
@@ -763,11 +801,35 @@ int main(int argc, char **argv)
             result[i] = (result[i] == 1 || r == 1);
         }
     }
+    fvad_free(vad);
 
     cout << "start post processing..." << endl;
 
     const int resPerSec = 1000 / windowDurationMS;
-    postProcess(result, params, mergedFreqInfos);
+    list<Segment> segs = postProcess(result, params, mergedFreqInfos);
+
+    FILE* outsrt = fopen(params.outputFilename.c_str(), "w");
+    if (!outsrt) {
+        std::cerr << "Error opening the output.txt." << std::endl;
+        return 1;
+    }
+    fprintf(outsrt, "\n");
+    int index = 1;
+    for (auto seg : segs) {
+        string start = toTimestamp(seg.start);
+        string ed = toTimestamp(seg.end());
+
+        fprintf(outsrt, "%d\n", index++);
+        if (params.printDebugInfo) {
+            fprintf(outsrt, "%s --> %s\nN\n\n", start.c_str(), ed.c_str());
+        }
+        else {
+            fprintf(outsrt, "%s --> %s\nN\n\n", start.c_str(), ed.c_str());
+        }
+    }
+    fclose(outsrt);
+
+    cout << "preview: " << endl;
     for (int sec = 0; sec < 30; sec++) {
         printf("%2d ", sec);
         for (int i = 0; i < resPerSec; i++) {
@@ -781,38 +843,5 @@ int main(int argc, char **argv)
     }
     end_print:
 
-    fvad_free(vad);
-
-    cout << "generating result..." << endl;
-
-    vector<bool> resultDelta(result.size() + 1);
-    vector<string> timeStamps;
-    char tmbuf[128];
-    for (int i = 0; i < resultDelta.size(); i++) {
-        resultDelta[i] = result[i] != result[i + 1];
-        if (resultDelta[i]) {
-            int totalMS = windowDurationMS * i;
-            int totalSec = totalMS / 1000;
-            int ms = totalMS % 1000;
-            int s = totalSec % 60;
-            int m = (totalSec % 3600) / 60;
-            int h = totalSec / 3600;
-            sprintf(tmbuf, "%02d:%02d:%02d,%03d", h, m, s, ms);
-            timeStamps.push_back(string(tmbuf));
-        }
-    }
-
-
-    FILE* outsrt = fopen(params.outputFilename.c_str(), "w");
-    if (!outsrt) {
-        std::cerr << "Error opening the output.txt." << std::endl;
-        return 1; 
-    }
-    for (int i = 0; i + 1 < timeStamps.size(); i += 2) {
-        fprintf(outsrt, "%d\n", i / 2 + 1);
-        fprintf(outsrt, "%s --> %s\nN\n\n", timeStamps[i].c_str(), timeStamps[i + 1].c_str());
-    }
-    fprintf(outsrt, "\n");
-    
     std::cout << "Done" << std::endl;
 }
